@@ -13,7 +13,4 @@
     <Project Path="src/Echo.Infrastructure/Echo.Infrastructure.csproj" />
     <Project Path="src\Echo.Application\Echo.Application.csproj" />
   </Folder>
-  <Folder Name="/tests/">
-    <Project Path="tests/Echo.Api.Tests/Echo.Api.Tests.csproj" />
-  </Folder>
 </Solution>

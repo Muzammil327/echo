@@ -2,8 +2,9 @@ using Echo.Api.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 
-namespace Echo.Api.Tests;
+namespace Echo.Api.Tests.Extensions;
 
+[Trait("Category", "Unit")]
 public class FrontendClientConfigurationExtensionsTests
 {
     [Theory]
