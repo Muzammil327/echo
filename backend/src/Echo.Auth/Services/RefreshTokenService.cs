@@ -1,5 +1,5 @@
 using Echo.Application.Options;
-using Echo.Application.Services;
+using Echo.Application.Services.Generators;
 using Echo.Application.Services.Hashing;
 using Echo.Auth.Dtos;
 using Echo.Auth.Models;
@@ -13,7 +13,8 @@ public class RefreshTokenService(
     RefreshTokenRepository refreshTokenRepository,
     ITokenGenerator tokenGenerator,
     ITokenHasher tokenHashService,
-    IOptions<JwtOptions> jwtOptions
+    IOptions<JwtOptions> jwtOptions,
+    TimeProvider timeProvider
 )
 {
     private readonly JwtOptions _jwtOptions = jwtOptions.Value;
@@ -28,7 +29,7 @@ public class RefreshTokenService(
         var tokenEntity = new RefreshToken(userId)
         {
             TokenHash = await tokenHashService.HashAsync(plainToken),
-            ExpiresAt = DateTime.UtcNow.AddDays(_jwtOptions.RefreshTokenLifetimeDays),
+            ExpiresAt = timeProvider.GetUtcNow().UtcDateTime.AddDays(_jwtOptions.RefreshTokenLifetimeDays),
         };
 
         await refreshTokenRepository.CreateNewToken(tokenEntity, ct);
@@ -56,7 +57,7 @@ public class RefreshTokenService(
             return Failure(RefreshTokenFailureReason.Reused);
         }
 
-        if (existing.ExpiresAt <= DateTime.UtcNow)
+        if (existing.ExpiresAt <= timeProvider.GetUtcNow().UtcDateTime)
             return Failure(RefreshTokenFailureReason.Expired);
 
         if (existing.User.DeletedAt is not null)
