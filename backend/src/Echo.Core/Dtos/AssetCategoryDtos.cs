@@ -1,18 +1,26 @@
-using Echo.Core.Dtos.Interfaces;
+using System.ComponentModel.DataAnnotations;
 
 namespace Echo.Core.Dtos;
 
-public record AssetCategoryCreateDto : IReferenceCreateDto
+public record AssetCategoryCreateDto
 {
+    [Required, StringLength(100, MinimumLength = 1)]
     public required string Name { get; init; }
 }
 
-public record AssetCategoryUpdateDto : IReferenceUpdateDto
+public record AssetCategoryUpdateDto
 {
+    [StringLength(100, MinimumLength = 1)]
+    public string? Name { get; init; }
+}
+
+public record AssetCategoryResponseDto
+{
+    public int Id { get; init; }
     public required string Name { get; init; }
 }
 
-public record AssetCategoryResponseDto : IReferenceResponseDto
+public record AssetCategorySearchResultDto
 {
     public int Id { get; init; }
     public required string Name { get; init; }

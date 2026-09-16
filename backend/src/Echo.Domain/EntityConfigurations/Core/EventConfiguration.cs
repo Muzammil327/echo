@@ -22,5 +22,11 @@ public class EventConfiguration : PrimaryEntityConfigurationBase<Event>
             .WithMany()
             .HasForeignKey(e => e.OrganizerId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(e => e.Name).HasMethod("GIN").HasOperators("gin_trgm_ops");
+
+        builder
+            .HasIndex(e => new { e.StartDate, e.Id })
+            .HasFilter($"\"{nameof(Event.DeletedAt)}\" IS NULL");
     }
 }

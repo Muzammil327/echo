@@ -1,5 +1,4 @@
 using Echo.Application.Pagination;
-using Echo.Application.Query;
 using Echo.Core.Controllers.Base;
 using Echo.Core.Dtos;
 using Echo.Core.Services;
@@ -9,80 +8,67 @@ namespace Echo.Core.Controllers;
 
 public class EventRegistrationsController(EventRegistrationService service) : CoreBaseController
 {
-    private readonly EventRegistrationService _service = service;
-
     [HttpGet]
-    public async Task<ActionResult> GetPageAsync(
-        [FromQuery] PaginationParameters paginationParameters,
-        [FromQuery] QueryParameters? queryParameters,
+    public async Task<ActionResult> List(
+        [FromQuery] PaginationRequest pagination,
         CancellationToken ct
     )
     {
-        var response = await _service.GetPageAsync(
-            GetCongregationId(),
-            paginationParameters,
-            queryParameters,
-            ct
-        );
+        var response = await service.List(GetCongregationId(), pagination, ct);
         return response.ToActionResult();
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult> GetByIdAsync(Guid id, CancellationToken ct)
+    public async Task<ActionResult> GetById(Guid id, CancellationToken ct)
     {
-        var response = await _service.GetByIdAsync(id, GetCongregationId(), ct);
+        var response = await service.GetById(id, GetCongregationId(), ct);
         return response.ToActionResult();
     }
 
     [HttpGet("event{id}")]
-    public async Task<ActionResult> GetByEventId(
-        [FromQuery] PaginationParameters paginationParameters,
-        [FromQuery] QueryParameters queryParameters,
+    public async Task<ActionResult> ListByEventId(
         Guid id,
+        [FromQuery] PaginationRequest pagination,
         CancellationToken ct
     )
     {
-        var response = await _service.GetByEventId(paginationParameters, queryParameters, id, ct);
+        var response = await service.ListByEventId(GetCongregationId(), id, pagination, ct);
         return response.ToActionResult();
     }
 
     [HttpGet("member{id}")]
-    public async Task<ActionResult> GetByMemberId(
-        [FromQuery] PaginationParameters paginationParameters,
-        [FromQuery] QueryParameters queryParameters,
+    public async Task<ActionResult> ListByMemberId(
         Guid id,
+        [FromQuery] PaginationRequest pagination,
         CancellationToken ct
     )
     {
-        var response = await _service.GetByMemberId(paginationParameters, queryParameters, id, ct);
+        var response = await service.ListByMemberId(GetCongregationId(), id, pagination, ct);
         return response.ToActionResult();
     }
 
     [HttpPost]
-    public async Task<ActionResult> CreateAsync(
-        EventRegistrationCreateDto dto,
-        CancellationToken ct
-    )
+    public async Task<ActionResult> Create(EventRegistrationCreateDto dto, CancellationToken ct)
     {
-        var response = await _service.CreateAsync(GetCongregationId(), dto, ct);
+        var response = await service.Create(GetCongregationId(), dto, ct);
         return response.ToActionResult();
     }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult> UpdateAsync(
+    public async Task<ActionResult> Update(
         Guid id,
         EventRegistrationUpdateDto dto,
         CancellationToken ct
     )
     {
-        var response = await _service.UpdateAsync(GetCongregationId(), id, dto, ct);
+        var response = await service.Update(GetCongregationId(), id, dto, ct);
         return response.ToActionResult();
     }
 
     [HttpDelete("{id}")]
-    public async Task<ActionResult> DeleteAsync(Guid id, CancellationToken ct)
+    public async Task<ActionResult> Delete(Guid id, CancellationToken ct)
     {
-        var response = await _service.DeleteAsync(id, GetCongregationId(), ct);
+        var response = await service.Delete(id, GetCongregationId(), ct);
         return response.ToActionResult();
     }
 }

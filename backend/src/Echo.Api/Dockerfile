@@ -20,8 +20,12 @@ COPY backend/ .
 RUN dotnet tool restore
 RUN dotnet build src/Echo.Api/Echo.Api.csproj -c Release --no-restore
 
-# Install curl for health checks
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+# curl is required by the api healthcheck in docker-compose.yml. The dev override
+# (docker-compose.override.yml) builds the api service from this stage, so it needs
+# curl too -- installing it only in the runtime stage would break the dev stack.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 
 FROM build AS publish
 RUN dotnet publish src/Echo.Api/Echo.Api.csproj \
@@ -31,6 +35,12 @@ RUN dotnet publish src/Echo.Api/Echo.Api.csproj \
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
+
+# The runtime image is a fresh aspnet base -- packages from the build stage are not
+# carried over, so curl must be installed again for the healthcheck to work in prod.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=publish /app/publish .
 

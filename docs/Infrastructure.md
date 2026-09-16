@@ -1,7 +1,7 @@
 # Infrastructure
 
 **Written by:** @clintonbampoe
-**Last updated:** 2026-08-25 by @clintonbampoe
+**Last updated:** 2026-09-15 by @clintonbampoe
 
 ---
 
@@ -30,10 +30,34 @@ container serving static files, which the edge Nginx proxies to.
 **`db`** — Postgres 18. Data is stored in a volume so it survives restarts. In
 prod, only `api` can reach it — it's not open to the outside world.
 
-**`nginx`** — sits in front as the edge proxy. In prod, it routes `/api`, `/health`, and `/swagger` to the `api` container, and all other traffic `/` to the `client` container. In dev, it only routes API traffic.
+**`nginx`** — sits in front as the edge proxy. In prod, it routes `/api` (which covers the health endpoints at `/api/health/*`), `/scalar`, and `/swagger` to the `api` container, and all other traffic `/` to the `client` container. In dev, it only routes API traffic.
 
-**`migrator`** — runs database migrations. Doesn't start automatically — you run
-it yourself when you want to. See [Setup.md](GettingStarted.md) for when to use this.
+**`migrator`** — runs database migrations. This is used for controlled updates in CI/CD or when the API is not yet online.
+
+**`backup`** — handles scheduled database dumps. It uses Supercronic instead of standard cron to ensure that environment variables are passed correctly to the backup scripts.
+
+### Health endpoints
+
+Both endpoints are public and unauthenticated.
+
+**`/api/health/live`** — "is this process up?". Deliberately has no external
+dependencies, so a database outage never trips it. This is what the compose
+healthcheck polls, because a failure here means *restart the container*.
+
+**`/api/health/ready`** — "should traffic be routed here?". Runs the `database`
+check, which asserts two things:
+
+1. The database is reachable.
+2. Every migration compiled into this build has been applied — it compares them
+   against `__EFMigrationsHistory`.
+
+A half-migrated database fails this check with the names of the pending
+migrations, which is the point: the API can open a connection but any endpoint
+touching a missing table would return 500. Failure means *take this instance out
+of rotation*, not restart it.
+
+So if `/ready` returns 503 with `Database has N pending migration(s)`, run the
+`migrator` container — the database is up, it's just behind the code.
 
 ### Why there are three compose files
 
@@ -84,6 +108,41 @@ To persist data in the containers, we've mounted certain named volumes that data
 | --------------- | ---------------------- | ---------------------------------------------------- |
 | `postgres-data` | The actual database    | No — deleting this deletes your data.                |
 | `nuget-cache`   | Speeds up dev rebuilds | YES, safely. It'll just rebuild the cache next time. |
+| `backup-dumps`   | Database backup files | No — deleting this removes your backups.             |
+
+## Database Backups
+
+Supercronic is used to schedule database backups.
+
+- **Tooling**: The container uses `postgresql18-client`. The client version must match the server version (Postgres 18) to ensure backup reliability.
+- **Format**: Backups are created in the Postgres custom binary format (`-Fc`). This format allows for compressed files and selective restoration.
+- **Logging**: The crontab uses `2>&1 | tee -a /app/dumps/backup.log`. This captures both standard output and error messages in both the Docker logs and the log file.
+- **Scheduling**: The crontab is copied into the image but is also mounted as a volume. This allows the backup schedule to be changed on the host without rebuilding the image.
+
+## Database Migrations
+
+The database schema is updated through two primary paths:
+
+- **Automatic**: When `RunMigrationsOnStartup` is set to `true`, the API applies pending migrations automatically during startup.
+- **Manual**: The `migrator` container can be run independently to apply migrations:
+  ```bash
+  docker compose run --rm migrator
+  ```
+- **Local Development**: To manage migrations during development, use the following .NET EF commands:
+  ```bash
+  dotnet ef migrations add "MigrationName" --project backend/src/Echo.Infrastructure --startup-project backend/src/Echo.Api
+  dotnet ef database update --project backend/src/Echo.Infrastructure --startup-project backend/src/Echo.Api
+  ```
+
+## Configuration
+
+Echo uses a hierarchical configuration system designed to be explicit and predictable. The application reads settings in a specific order of priority: **Environment Variables (`.env`)** override **`appsettings.json`** defaults.
+
+### The Configuration System
+
+To keep settings organized, the application groups them into categories. To override a nested JSON setting via the `.env` file, we use a **double underscore (`__`)** naming convention. For example, a setting located at `Database:Name` in the JSON is overridden by `Database__Name` in the environment.
+
+This approach allows the API to map flat environment variables directly into structured C# Options classes. To ensure stability, the API employs a **Fail-Fast** principle: using `.ValidateOnStart()`, the app will refuse to boot if a required configuration is missing or invalid (e.g., using HTTP in production). This ensures configuration errors are caught during deployment rather than as runtime failures.
 
 ## Logs
 
@@ -131,22 +190,33 @@ this — a service without it silently falls back to uncapped logs.
 
 ## Environment variables
 
-Checked against `.env.example` and the actual code as of 2026-07-31.
-If you add or change a variable or the structure of the `.env` file, update this table in the same change — the code is what's actually true, this table just describes it.
+The following table lists all available configuration variables. If you add a new variable to the code, update this table to maintain the source of truth.
 
-| Variable                             | Required | Used by | What it's for                                                                                                                                                            |
-| ------------------------------------ | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `DB_NAME`                            | YES      | db, api | Name of the Postgres database                                                                                                                                            |
-| `DB_USERNAME`                        | YES      | db, api | Postgres login username                                                                                                                                                  |
-| `DB_PASSWORD`                        | YES      | db, api | Postgres login password                                                                                                                                                  |
-| `RESEND_API_KEY`                     | YES      | api     | Sends emails through Resend                                                                                                                                              |
-| `FRONTEND_BASE_URL`                  | YES      | api     | Builds links in outgoing emails (password reset, email verification). This is not CORS config — it doesn't control which origins can call the API.                       |
-| `MAIL_CLIENT_ADDRESS`                | YES      | api     | The "from" address on outgoing emails                                                                                                                                    |
-| `RUN_DATABASE_MIGRATIONS_ON_STARTUP` | NO       | api     | `true` by default — applies migrations automatically when the API starts. Set to `false` if you'd rather run them yourself with `docker-compose run --rm migrator`.      |
-| `JWT_PRIVATE_KEY`                    | YES      | api     | Signs login tokens. Stored base64-encoded, not raw PEM — raw PEM has line breaks that don't survive `.env`'s format. See [setup.md](GettingStarted.md).                         |
-| `JWT_PUBLIC_KEY`                     | YES      | api     | Checks that login tokens are genuine. Same base64 encoding as above.                                                                                                     |
-| `JWT_ISSUER`                         | YES      | api     | Stamped onto every token when it's created. Must exactly match the value the API checks tokens against — if it doesn't, logins fail with no clear error telling you why. |
-| `JWT_AUDIENCE`                       | YES      | api     | Same rule as `JWT_ISSUER` — created and checked with the same value, or you get a silent, confusing failure.                                                             |
+| Variable                 | Required | Used by | Purpose                                                                            |
+| ------------------------ | -------- | ------- | ---------------------------------------------------------------------------------- |
+| `Database__Name`         | YES      | db, api | Name of the Postgres database.                                                     |
+| `Database__Username`     | YES      | db, api | Postgres login username.                                                           |
+| `Database__Password`     | YES      | db, api | Postgres login password.                                                           |
+| `Frontend__BaseUrl`    | YES      | api     | **Identity**: The public URL of the app. Used to build links in outbound emails.   |
+| `Cors__AllowedOrigins`   | YES      | api     | **Security**: Comma-separated list of domains allowed to make requests to the API. |
+| `Jwt__PrivateKey`        | YES      | api     | Signs login tokens (Base64 encoded).                                               |
+| `Jwt__PublicKey`         | YES      | api     | Verifies login tokens (Base64 encoded).                                            |
+| `Jwt__Issuer`            | YES      | api     | Token issuer identity.                                                             |
+| `Jwt__Audience`          | YES      | api     | Token intended audience.                                                           |
+| `MailClient__Address`    | YES      | api     | The "from" address for outbound emails.                                            |
+| `MailClient__ApiKey`     | YES      | api     | API key for the Resend email service.                                              |
+| `RunMigrationsOnStartup` | NO       | api     | `true` by default. Applies DB updates on boot.                                     |                                                                                  |
+| `License__LuckyPennyKey` | NO       | api     | License key for LuckyPenny integration.                                            |
+
+### CORS & Frontend Identity
+
+Because the frontend interacts with the API in two fundamentally different ways, we use two distinct configuration paths. **It is critical not to confuse the two.**
+
+**1. Frontend Identity (`Frontend__PublicUrl`)**
+This is the "Public Face" of the application—a single, absolute URL (e.g., `https://app.echo.church`). The API uses this value to generate absolute links for password resets, email verifications, and invitation links. For security, this must be an HTTPS URL in all environments except Development.
+
+**2. CORS Security (`Cors__AllowedOrigins`)**
+This is a security barrier—a comma-separated list of trusted origins (e.g., `http://localhost:5173,https://app.echo.church`). It tells the browser which domains are authorized to make requests to the API. If a request comes from an origin not in this list, the API rejects the request and the browser blocks the response. To add a new environment (such as a staging site), simply append the URL to this list.
 
 ---
 
@@ -159,7 +229,7 @@ It's main purpose is to document the steps we took to fix a problem, so that we 
 ### How to write an entry
 
 | Column      | What to write                                                                                   |
-| ----------- | ----------------------------------------------------------------------------------------------- |
+| ----------- | --------------------------------------------------------------------------------------------------------------- |
 | Symptom     | What you saw, in plain words — specific enough that someone else hitting it would recognize it. |
 | First check | The fastest way to confirm it's this problem — usually a `docker-compose logs` command.         |
 | Root cause  | One sentence: what was actually wrong.                                                          |
@@ -184,7 +254,7 @@ See [Conventions in README](./README.md#conventions) for the full ruleset on who
 | Root cause  | `JWT_PRIVATE_KEY` in `.env` was raw PEM, not base64. Raw PEM doesn't survive `.env`'s format properly. |
 | Fix         | Run `sh backend/tools/jwt-key-setup/setup-jwt-keys.sh env` to regenerate the keys correctly.           |
 | Date        | 2026-07-31                                                                                             |
-| Added by    | @clintonbampoe                                                                                         |
+| Added by    | @clintonbampoe                                                                                                                        |
 
 ---
 
@@ -207,8 +277,7 @@ See [Conventions in README](./README.md#conventions) for the full ruleset on who
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Symptom     | Docker compose fails to start the stack with error: `dependency failed to start: container echo-api-1 is unhealthy`. API logs show it has started and is listening properly.                                                                                            |
 | First check | Inspect the docker network to make sure the api was properly bound to the network. Confirm that the api was reachable from outside through the `echo-network` IP gateway. This proved that the root cause wasn't from the api but a configuration in our docker compose |
-| Root cause  | Since api takes about 10-15 seconds on average to startup, all the healthchecks hit the api while it was building. Hence, all the checks failed prematurely and marked the api as unhealthy but the api was completely fine.                                            |
+| Root cause  | Since api takes about 10-15 seconds on average to startup, all the healthchecks hit the api while it was building. Hence, all the checks failed prematurely and marked the api as unhealthy but the api was completely fine.                                            P|
 | Fix         | Added a `start_period: 10s` tag to the yaml config to delay the health checks until the api had completed its build.                                                                                                                                                    |
-| Date        | 2026-08-25                                                                                                                                                                                                                                                              |
+| Date        | 2026-08-25                                                                                                                                                                                                                                                          |
 | Added by    | @clintonbampoe                                                                                                                                                                                                                                                          |
-

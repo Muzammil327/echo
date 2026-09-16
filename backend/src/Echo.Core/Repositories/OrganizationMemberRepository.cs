@@ -1,8 +1,5 @@
-using Echo.Application.Extensions.QueryMethods;
-using Echo.Application.Pagination;
-using Echo.Application.Query;
+using Echo.Application.Query.Extensions;
 using Echo.Core.Dtos;
-using Echo.Core.Repositories.Base;
 using Echo.Domain.Data;
 using Echo.Domain.Entities.Core;
 using Microsoft.EntityFrameworkCore;
@@ -10,134 +7,127 @@ using Microsoft.EntityFrameworkCore;
 namespace Echo.Core.Repositories;
 
 public class OrganizationMemberRepository(AppDbContext context)
-    : PrimaryRepositoryBase<OrganizationMember>(context)
 {
-    public async Task<PagedResponse<OrganizationMemberListResponseDto>> GetPageAsync(
+    private readonly DbSet<OrganizationMember> _dbSet = context.Set<OrganizationMember>();
+
+    public async Task<List<OrganizationMember>> GetPage(
         Guid congregationId,
-        PaginationParameters paginationParameters,
-        QueryParameters? queryParameters,
-        CancellationToken ct = default
+        OrganizationMemberFilters filters,
+        OrganizationMemberCursor? cursor,
+        int pageSize,
+        CancellationToken ct
     )
     {
-        var query = DbSet
+        return await _dbSet
             .AsNoTracking()
-            .ApplySoftDeleteFilter()
-            .ApplyDateFilters(queryParameters)
-            .Where(o => o.CongregationId == congregationId);
-
-        int totalRecords = await query.CountAsync(ct);
-
-        var records = await query
-            .OrderBy(o => o.Id)
-            .Select(o => new OrganizationMemberListResponseDto
-            {
-                Id = o.Id,
-                MemberName = o.Member.Name,
-                OrganizationName = o.Organization.Name,
-                Role = o.Role,
-                JoinedAt = o.JoinedAt,
-            })
-            .ApplyPagination(paginationParameters)
+            .FilterSoftDeleted()
+            .Where(o => o.CongregationId == congregationId)
+            .Include(o => o.Member)
+            .Include(o => o.Organization)
+            .Filter(filters)
+            .OrderByDescending(o => o.CreatedAt)
+            .ThenBy(o => o.Id)
+            .Paginate(cursor, pageSize)
             .ToListAsync(ct);
-
-        return new PagedResponse<OrganizationMemberListResponseDto>(
-            records,
-            paginationParameters,
-            totalRecords
-        );
     }
 
-    public async Task<OrganizationMemberResponseDto?> GetByIdAsync(
+    public async Task<OrganizationMember?> GetById(
         Guid id,
         Guid congregationId,
         CancellationToken ct = default
     )
     {
-        return await DbSet
-            .AsNoTracking()
-            .ApplySoftDeleteFilter()
+        return await _dbSet
+            .FilterSoftDeleted()
             .Where(o => o.Id == id && o.CongregationId == congregationId)
-            .Select(o => new OrganizationMemberResponseDto
-            {
-                Id = o.Id,
-                MemberId = o.MemberId,
-                MemberName = o.Member.Name,
-                OrganizationId = o.OrganizationId,
-                OrganizationName = o.Organization.Name,
-                Role = o.Role,
-                JoinedAt = o.JoinedAt,
-                CreatedAt = o.CreatedAt,
-            })
+            .Include(o => o.Member)
+            .Include(o => o.Organization)
             .FirstOrDefaultAsync(ct);
     }
 
-    public async Task<PagedResponse<OrganizationMemberListResponseDto>> GetByMemberId(
-        PaginationParameters paginationParameters,
-        QueryParameters queryParameters,
-        Guid memberId,
-        CancellationToken ct
-    )
+    public void Create(OrganizationMember entity)
     {
-        var query = DbSet
-            .AsNoTracking()
-            .ApplySoftDeleteFilter()
-            .ApplyDateFilters(queryParameters)
-            .Where(o => o.MemberId == memberId);
-
-        var totalCount = await query.CountAsync(ct);
-
-        var records = await query
-            .OrderBy(o => o.Id)
-            .Select(o => new OrganizationMemberListResponseDto
-            {
-                Id = o.Id,
-                MemberName = o.Member.Name,
-                OrganizationName = o.Organization.Name,
-                Role = o.Role,
-                JoinedAt = o.JoinedAt,
-            })
-            .ApplyPagination(paginationParameters)
-            .ToListAsync(ct);
-
-        return new PagedResponse<OrganizationMemberListResponseDto>(
-            records,
-            paginationParameters,
-            totalCount
-        );
+        _dbSet.Add(entity);
     }
 
-    public async Task<PagedResponse<OrganizationMemberListResponseDto>> GetByOrganizationId(
-        PaginationParameters paginationParameters,
-        QueryParameters queryParameters,
-        Guid organizationId,
+    public void SoftDelete(OrganizationMember entity)
+    {
+        entity.DeletedAt = DateTime.UtcNow;
+    }
+
+    public async Task<List<OrganizationMember>> ListByMemberId(
+        Guid congregationId,
+        Guid memberId,
+        OrganizationMemberFilters filters,
+        OrganizationMemberCursor? cursor,
+        int pageSize,
         CancellationToken ct
     )
     {
-        var query = DbSet
+        return await _dbSet
             .AsNoTracking()
-            .ApplySoftDeleteFilter()
-            .ApplyDateFilters(queryParameters)
-            .Where(o => o.OrganizationId == organizationId);
-
-        var totalCount = await query.CountAsync(ct);
-
-        var records = await query
-            .OrderBy(o => o.Id)
-            .Select(o => new OrganizationMemberListResponseDto
-            {
-                Id = o.Id,
-                MemberName = o.Member.Name,
-                OrganizationName = o.Organization.Name,
-                Role = o.Role,
-                JoinedAt = o.JoinedAt,
-            })
-            .ApplyPagination(paginationParameters)
+            .FilterSoftDeleted()
+            .Where(o => o.CongregationId == congregationId)
+            .Where(o => o.MemberId == memberId)
+            .Include(o => o.Member)
+            .Include(o => o.Organization)
+            .Filter(filters)
+            .OrderByDescending(o => o.CreatedAt)
+            .ThenBy(o => o.Id)
+            .Paginate(cursor, pageSize)
             .ToListAsync(ct);
+    }
 
-        return new PagedResponse<OrganizationMemberListResponseDto>(
-            records,
-            paginationParameters,
-            totalCount
-        );
+    public async Task<List<OrganizationMember>> ListByOrganizationId(
+        Guid congregationId,
+        Guid organizationId,
+        OrganizationMemberFilters filters,
+        OrganizationMemberCursor? cursor,
+        int pageSize,
+        CancellationToken ct
+    )
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .FilterSoftDeleted()
+            .Where(o => o.CongregationId == congregationId)
+            .Where(o => o.OrganizationId == organizationId)
+            .Include(o => o.Member)
+            .Include(o => o.Organization)
+            .Filter(filters)
+            .OrderByDescending(o => o.CreatedAt)
+            .ThenBy(o => o.Id)
+            .Paginate(cursor, pageSize)
+            .ToListAsync(ct);
+    }
+}
+
+internal static class OrganizationMemberQueryExtensions
+{
+    internal static IQueryable<OrganizationMember> Filter(
+        this IQueryable<OrganizationMember> query,
+        OrganizationMemberFilters filters
+    )
+    {
+        if (filters.Role is not null)
+            query = query.Where(o => o.Role == filters.Role);
+
+        return query;
+    }
+
+    internal static IQueryable<OrganizationMember> Paginate(
+        this IQueryable<OrganizationMember> query,
+        OrganizationMemberCursor? cursor,
+        int pageSize
+    )
+    {
+        if (cursor is not null)
+            query = query.Where(e =>
+                e.CreatedAt < cursor.CreatedAt
+                || (e.CreatedAt == cursor.CreatedAt && e.Id > cursor.Id)
+            );
+
+        query = query.Take(pageSize);
+        return query;
     }
 }

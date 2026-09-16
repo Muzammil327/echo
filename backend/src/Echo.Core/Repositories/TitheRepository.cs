@@ -1,8 +1,5 @@
-using Echo.Application.Extensions.QueryMethods;
-using Echo.Application.Pagination;
-using Echo.Application.Query;
+using Echo.Application.Query.Extensions;
 using Echo.Core.Dtos;
-using Echo.Core.Repositories.Base;
 using Echo.Domain.Data;
 using Echo.Domain.Entities.Core;
 using Echo.Domain.Enums;
@@ -10,83 +7,88 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Echo.Core.Repositories;
 
-public class TitheRepository(AppDbContext context) : PrimaryRepositoryBase<Tithe>(context)
+public class TitheRepository(AppDbContext context)
 {
-    public async Task<PagedResponse<TitheListResponseDto>> GetPageAsync(
+    private readonly DbSet<Tithe> _dbSet = context.Set<Tithe>();
+
+    public async Task<List<Tithe>> List(
         Guid congregationId,
-        PaginationParameters paginationParameters,
-        QueryParameters? queryParameters,
-        CancellationToken ct = default
+        TitheFilter filters,
+        TitheCursor? cursor,
+        int pageSize,
+        CancellationToken ct
     )
     {
-        var query = DbSet
+        var res = await _dbSet
             .AsNoTracking()
-            .ApplySoftDeleteFilter()
-            .ApplyDateFilters(queryParameters)
-            .Where(t => t.CongregationId == congregationId);
-
-        int totalRecords = await query.CountAsync(ct);
-
-        var records = await query
-            .OrderBy(t => t.Id)
-            .Select(t => new TitheListResponseDto
-            {
-                Id = t.Id,
-                MemberName = t.Member.Name,
-                Amount = t.Amount,
-                ForYear = t.ForYear,
-                ForMonth = t.ForMonth,
-                PaymentMethod = t.PaymentMethod,
-                CollectionDate = t.CollectionDate,
-            })
-            .ApplyPagination(paginationParameters)
+            .FilterSoftDeleted()
+            .Where(t => t.CongregationId == congregationId)
+            .Include(t => t.Member)
+            .Filter(filters)
+            .OrderByDescending(t => t.CollectionDate)
+            .ThenBy(t => t.Id)
+            .Paginate(cursor, pageSize)
             .ToListAsync(ct);
 
-        return new PagedResponse<TitheListResponseDto>(records, paginationParameters, totalRecords);
+        return res;
     }
 
-    public async Task<TitheResponseDto?> GetByIdAsync(
-        Guid id,
-        Guid congregationId,
-        CancellationToken ct = default
-    )
+    public async Task<Tithe?> GetById(Guid id, Guid congregationId, CancellationToken ct)
     {
-        return await DbSet
-            .AsNoTracking()
-            .ApplySoftDeleteFilter()
+        return await _dbSet
+            .FilterSoftDeleted()
             .Where(t => t.Id == id && t.CongregationId == congregationId)
-            .Select(t => new TitheResponseDto
-            {
-                Id = t.Id,
-                MemberId = t.MemberId,
-                MemberName = t.Member.Name,
-                Amount = t.Amount,
-                ForYear = t.ForYear,
-                ForMonth = t.ForMonth,
-                PaymentMethod = t.PaymentMethod,
-                CollectionDate = t.CollectionDate,
-                Description = t.Description,
-                CreatedAt = t.CreatedAt,
-            })
+            .Include(t => t.Member)
             .FirstOrDefaultAsync(ct);
     }
 
-    public async Task<List<TitheMonthlyTotalDto>> GetMonthlySummaryAsync(
-        Guid congregationId, int year, CancellationToken ct = default)
+    public void Create(Tithe entity)
     {
-        var totals = await DbSet
-            .ApplySoftDeleteFilter()
-            .Where(t => t.CongregationId == congregationId && t.ForYear == year)
-            .GroupBy(t => t.ForMonth)
-            .Select(g => new { Month = g.Key, Total = g.Sum(t => t.Amount) })
-            .ToListAsync(ct);
+        _dbSet.Add(entity);
+    }
 
-        return Enum.GetValues<MonthOfYear>()
-            .Select(m => new TitheMonthlyTotalDto
-            {
-                Month = m,
-                Total = totals.FirstOrDefault(t => t.Month == m)?.Total ?? 0,
-            })
-            .ToList();
+    public void SoftDelete(Tithe entity)
+    {
+        entity.DeletedAt = DateTime.UtcNow;
+    }
+}
+
+internal static class TitheQueryExtensions
+{
+    internal static IQueryable<Tithe> Filter(this IQueryable<Tithe> query, TitheFilter filters)
+    {
+        var currentYear = TimeProvider.System.GetUtcNow().Year;
+        var currentMonth = (MonthOfYear)TimeProvider.System.GetUtcNow().Month;
+
+        query = filters.Year is not null
+            ? query.Where(t => t.ForYear == filters.Year)
+            : query.Where(t => t.ForYear == currentYear);
+
+        query = filters.Month is not null
+            ? query.Where(t => t.ForMonth == filters.Month)
+            : query.Where(t => t.ForMonth == currentMonth);
+
+        if (filters.PaymentMethod is not null)
+            query = query.Where(t => t.PaymentMethod == filters.PaymentMethod);
+
+        if (filters.MemberId is not null)
+            query = query.Where(t => t.MemberId == filters.MemberId);
+
+        return query;
+    }
+
+    internal static IQueryable<Tithe> Paginate(
+        this IQueryable<Tithe> query,
+        TitheCursor? cursor,
+        int pageSize
+    )
+    {
+        if (cursor is not null)
+            query = query.Where(t =>
+                t.CollectionDate < cursor.CollectionDate
+                || (t.CollectionDate == cursor.CollectionDate && t.Id > cursor.Id)
+            );
+
+        return query.Take(pageSize);
     }
 }

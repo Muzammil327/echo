@@ -1,47 +1,54 @@
-using Echo.Core.Dtos.Interfaces;
+using System.ComponentModel.DataAnnotations;
 
 namespace Echo.Core.Dtos;
 
-public record EventCreateDto : IPrimaryCreateDto
+public record EventCreateDto
 {
     public Guid OrganizationId { get; init; }
     public Guid OrganizerId { get; init; }
+
+    [Required, StringLength(100, MinimumLength = 1)]
     public required string Name { get; init; }
+
     public DateOnly StartDate { get; init; }
     public DateOnly EndDate { get; init; }
     public TimeOnly? StartTime { get; init; }
     public TimeOnly? EndTime { get; init; }
+
+    [StringLength(255)]
     public string? Location { get; init; }
+
+    [Range(1, 100_000)]
     public int? Capacity { get; init; }
+
+    [StringLength(2000)]
     public string? Description { get; init; }
 }
 
-public record EventUpdateDto : IPrimaryUpdateDto
+public record EventUpdateDto
 {
-    public Guid OrganizationId { get; init; }
-    public Guid OrganizerId { get; init; }
-    public required string Name { get; init; }
-    public DateOnly StartDate { get; init; }
-    public DateOnly EndDate { get; init; }
+    public Guid? OrganizationId { get; init; }
+    public Guid? OrganizerId { get; init; }
+
+    [StringLength(100)]
+    public string? Name { get; init; }
+
+    public DateOnly? StartDate { get; init; }
+    public DateOnly? EndDate { get; init; }
     public TimeOnly? StartTime { get; init; }
     public TimeOnly? EndTime { get; init; }
+
+    [StringLength(255)]
     public string? Location { get; init; }
+
+    [Range(1, 100_000)]
     public int? Capacity { get; init; }
+
+    [StringLength(2000)]
     public string? Description { get; init; }
 }
 
-public record EventListResponseDto : IPrimaryListResponseDto, Application.Dtos.Interfaces.IPrimaryListResponseDto
-{
-    public Guid Id { get; init; }
-    public required string OrganizationName { get; init; }
-    public required string OrganizerName { get; init; }
-    public required string Name { get; init; }
-    public DateOnly StartDate { get; init; }
-    public DateOnly EndDate { get; init; }
-    public string? Location { get; init; }
-}
-
-public record EventResponseDto : IPrimaryResponseDto
+public record EventResponseDto
 {
     public Guid Id { get; init; }
     public Guid OrganizationId { get; init; }
@@ -59,10 +66,22 @@ public record EventResponseDto : IPrimaryResponseDto
     public DateTime CreatedAt { get; init; }
 }
 
-public record EventSummaryDto
+public record EventSearchResultDto
 {
-    public required int TotalEvents { get; init; }
-    public required int UpcomingEvents { get; init; }
-    public required int PastEvents { get; init; }
-    public required int TotalRegistrations { get; init; }
+    public Guid Id { get; init; }
+    public required string Name { get; init; }
+}
+
+public record EventCursor
+{
+    public DateOnly StartDate { get; init; }
+    public Guid Id { get; init; }
+}
+
+public record EventFilters
+{
+    public DateOnly? StartDate { get; init; }
+    public string? Name { get; init; }
+    public Guid? OrganizationId { get; init; }
+    public Guid? OrganizerId { get; init; }
 }

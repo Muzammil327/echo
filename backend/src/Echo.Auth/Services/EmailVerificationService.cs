@@ -1,6 +1,6 @@
 using Echo.Application.HttpResults;
-using Echo.Application.Services;
 using Echo.Application.Services.Email;
+using Echo.Application.Services.Generators;
 using Echo.Application.Services.Hashing;
 using Echo.Auth.Models;
 using Echo.Auth.Repositories;
@@ -12,21 +12,22 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Echo.Auth.Services;
 
 public class EmailVerificationService(
-    AppDbContext dbContext,
     EmailVerificationTokenRepository emailVerificationTokenRepository,
     UserRepository userRepository,
     [FromKeyedServices("Resend")] IEmailService emailService,
+    IUnitOfWork unitOfWork,
     ITokenGenerator tokenGenerator,
     ITokenHasher hashService,
-    AuthLinkBuilder linkBuilder
+    AuthLinkBuilder linkBuilder,
+    TimeProvider timeProvider
 )
 {
     public async Task<IOperationResult> SendVerificationLinkToEmail(
         string emailAddress,
-        CancellationToken ct = default
+        CancellationToken ct
     )
     {
-        var user = await userRepository.GetActiveUserByEmail(emailAddress, ct);
+        var user = await userRepository.GetByEmail(emailAddress, ct);
 
         if (user is null)
             return new GenericEmailSentSuccessResult();
@@ -39,33 +40,24 @@ public class EmailVerificationService(
             );
 
         if (existingToken is not null)
-            existingToken.InvalidatedAt = DateTime.UtcNow;
+            existingToken.InvalidatedAt = timeProvider.GetUtcNow().UtcDateTime;
 
         var token = tokenGenerator.GenerateToken(16);
-
         var tokenObject = new EmailVerificationToken(user.Id)
         {
             UserId = user.Id,
-            TokenHash = await hashService.HashAsync(token),
+            TokenHash = hashService.Hash(token),
         };
 
-        var recordCreatedSuccessfully = await emailVerificationTokenRepository.CreateRecord(
-            tokenObject,
-            ct
-        );
-
-        if (!recordCreatedSuccessfully)
-            return new InternalServerError();
-
-        var userInfo = await userRepository.GetByIdAsync(user.Id, ct);
+        emailVerificationTokenRepository.Create(tokenObject);
+        var userInfo = await userRepository.GetById(user.Id, ct);
         if (userInfo == null)
             return new InternalServerError();
 
         var verificationLink = linkBuilder.BuildEmailVerificationLink(token);
-
         var emailContent = new VerifyEmailContent(userInfo.Name, verificationLink);
 
-        await dbContext.SaveChangesAsync(ct);
+        await unitOfWork.CommitAsync(ct);
         await emailService.SendAsync(userInfo.EmailAddress, emailContent);
 
         // TODO: Remove token in production
@@ -76,12 +68,8 @@ public class EmailVerificationService(
 
     public async Task<IOperationResult> VerifyEmail(string token, CancellationToken ct = default)
     {
-        var hashedInput = await hashService.HashAsync(token);
-
-        var tokenRecord = await emailVerificationTokenRepository.GetTokenRecordByHashWithUser(
-            hashedInput,
-            ct
-        );
+        var hashedInput = hashService.Hash(token);
+        var tokenRecord = await emailVerificationTokenRepository.GetTokenByHash(hashedInput, ct);
 
         if (tokenRecord is null)
             return new InvalidTokenResult();
@@ -90,20 +78,19 @@ public class EmailVerificationService(
             return new InvalidTokenResult();
 
         var user = tokenRecord.User;
-        user.EmailVerifiedAt = DateTime.UtcNow;
-        tokenRecord.UsedAt = DateTime.UtcNow;
+        user.EmailVerifiedAt = timeProvider.GetUtcNow().UtcDateTime;
+        tokenRecord.UsedAt = timeProvider.GetUtcNow().UtcDateTime;
 
-        await dbContext.SaveChangesAsync(ct);
-
+        await unitOfWork.CommitAsync(ct);
         return new OkResult("Operation Completed successfully.");
     }
 
-    private static bool IsTokenValid(EmailVerificationToken? token)
+    private bool IsTokenValid(EmailVerificationToken? token)
     {
         if (token is null)
             return false;
 
-        if (token.ExpiresAt <= DateTime.UtcNow)
+        if (token.ExpiresAt <= timeProvider.GetUtcNow().UtcDateTime)
             return false;
 
         if (token.UsedAt is not null)
@@ -122,7 +109,7 @@ public class EmailVerificationService(
             if (token is null)
                 return false;
 
-            var isActive = token.CreatedAt > DateTime.UtcNow.AddSeconds(-60);
+            var isActive = token.CreatedAt > timeProvider.GetUtcNow().UtcDateTime.AddSeconds(-60);
             return isActive;
         }
 
@@ -134,6 +121,6 @@ public class EmailVerificationService(
         CancellationToken ct
     )
     {
-        return await emailVerificationTokenRepository.GetActiveTokenForUser(userId, ct);
+        return await emailVerificationTokenRepository.GetTokenByUserId(userId, ct);
     }
 }

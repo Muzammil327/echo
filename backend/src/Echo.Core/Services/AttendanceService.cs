@@ -1,10 +1,10 @@
-using AutoMapper;
 using Echo.Application.HttpResults;
 using Echo.Application.Pagination;
-using Echo.Application.Query;
+using Echo.Application.Services.Encoders;
+using Echo.Application.Services.Generators;
 using Echo.Core.Dtos;
+using Echo.Core.Mapping.AttendanceMapping;
 using Echo.Core.Repositories;
-using Echo.Core.Services.Base;
 using Echo.Domain.Data;
 using Echo.Domain.Entities.Core;
 
@@ -12,46 +12,108 @@ namespace Echo.Core.Services;
 
 public class AttendanceService(
     AttendanceRepository repository,
-    AppDbContext context,
-    IMapper mapper
-) : PrimaryServiceBase<Attendance>(repository, context, mapper)
+    AttendanceContextRepository contextRepository,
+    IUnitOfWork unitOfWork,
+    IEncoder encoder,
+    IAttendanceMapper mapper,
+    IIdGenerator idGenerator
+)
 {
-    private readonly AttendanceRepository _attendanceRepository = repository;
-    
-    public override async Task<IOperationResult> GetPageAsync(
+    public async Task<IOperationResult> List(
         Guid congregationId,
-        PaginationParameters paginationParameters,
-        QueryParameters? queryParameters,
-        CancellationToken ct = default
+        AttendanceFilters filters,
+        PaginationRequest pagination,
+        CancellationToken ct
     )
     {
-        var result = await _attendanceRepository.GetPageAsync(
+        var cursor = encoder.Decode<AttendanceCursor>(pagination.Cursor);
+
+        var entities = await repository.List(
             congregationId,
-            paginationParameters,
-            queryParameters,
+            filters,
+            cursor,
+            pagination.PageSize + 1,
             ct
         );
-        return new SuccessResult<PagedResponse<AttendanceListResponseDto>>(result);
+
+        var hasMore = entities.Count > pagination.PageSize;
+        if (hasMore)
+            entities.RemoveAt(entities.Count - 1);
+        var nextCursor = hasMore ? encoder.Encode(BuildCursor(entities.Last())) : null;
+
+        var data = mapper.ToListDto(entities);
+        var res = new PagedResponse<AttendanceResponseDto>(hasMore, nextCursor, data);
+        return new SuccessResult<PagedResponse<AttendanceResponseDto>>(res);
     }
 
-    public override async Task<IOperationResult> GetByIdAsync(
-        Guid id,
+    public async Task<IOperationResult> GetById(Guid id, Guid congregationId, CancellationToken ct)
+    {
+        var entity = await repository.GetById(id, congregationId, ct);
+
+        if (entity is null)
+            return new NotFoundResult(id.ToString());
+
+        var res = mapper.ToDto(entity);
+        return new SuccessResult<AttendanceResponseDto>(res);
+    }
+
+    public async Task<IOperationResult> Create(
         Guid congregationId,
-        CancellationToken ct = default
+        AttendanceCreateDto dto,
+        CancellationToken ct
     )
     {
-        var result = await _attendanceRepository.GetByIdAsync(id, congregationId, ct);
+        var context = await contextRepository.GetById(congregationId, dto.AttendanceContextId, ct);
 
-        if (result is null)
-            return new NotFoundResult("Attendance record not found.");
+        if (context is null)
+            return new ForeignKeyEntityNotFound(nameof(context));
 
-        return new SuccessResult<AttendanceResponseDto>(result);
+        var entity = mapper.ToEntity(dto);
+        entity.CongregationId = congregationId;
+        entity.Id = idGenerator.Generate();
+        entity.AttendanceContext = context;
+
+        repository.Create(entity);
+        await unitOfWork.CommitAsync(ct);
+
+        var res = mapper.ToDto(entity);
+        return new CreatedAtResult<AttendanceResponseDto>(res);
     }
 
-    public async Task<IOperationResult> GetSummaryAsync(
-        Guid congregationId, int attendanceContextId, DateOnly forDate, CancellationToken ct = default)
+    public async Task<IOperationResult> Update(
+        Guid congregationId,
+        Guid id,
+        AttendanceUpdateDto dto,
+        CancellationToken ct
+    )
     {
-        var result = await _attendanceRepository.GetSummaryAsync(congregationId, attendanceContextId, forDate, ct);
-        return new SuccessResult<AttendanceSummaryDto>(result);
+        var entity = await repository.GetById(congregationId, id, ct);
+
+        if (entity is null)
+            return new NotFoundResult(id.ToString());
+
+        mapper.Patch(dto, entity);
+        await unitOfWork.CommitAsync(ct);
+
+        var res = mapper.ToDto(entity);
+        return new SuccessResult<AttendanceResponseDto>(res);
+    }
+
+    public async Task<IOperationResult> Delete(Guid congregationId, Guid id, CancellationToken ct)
+    {
+        var entity = await repository.GetById(congregationId, id, ct);
+
+        if (entity is null)
+            return new NotFoundResult(id.ToString());
+
+        repository.SoftDelete(entity);
+        await unitOfWork.CommitAsync(ct);
+
+        return new NoContentResult();
+    }
+
+    private AttendanceCursor BuildCursor(Attendance last)
+    {
+        return new AttendanceCursor { ForDate = last.ForDate, Id = last.Id };
     }
 }

@@ -233,10 +233,10 @@
   transition: width 0.4s ease;
 }
 
-.project-card-bar-fill.status-on-track  { background-color: #1a1a1a; }
-.project-card-bar-fill.status-completed { background-color: #1a1a1a; }
-.project-card-bar-fill.status-planning  { background-color: #1a1a1a; }
-.project-card-bar-fill.status-off-track { background-color: #1a1a1a; }
+.project-card-bar-fill.status-on-track  { background-color: #2e7d32; }
+.project-card-bar-fill.status-completed { background-color: #1565c0; }
+.project-card-bar-fill.status-planning  { background-color: #f57f17; }
+.project-card-bar-fill.status-off-track { background-color: #c62828; }
 
 .project-card-pct {
   font-size: 11px;
@@ -325,9 +325,12 @@
 .project-action-btn.danger {
   color: #c62828;
   border-color: #ffcdd2;
+  color: #c62828;
+  border-color: #ffcdd2;
 }
 
 .project-action-btn.danger:hover {
+  background-color: #ffebee;
   background-color: #ffebee;
 }
 
@@ -345,9 +348,13 @@
 .status-on-track {
   background-color: #e8f5e9;
   color: #2e7d32;
+  background-color: #e8f5e9;
+  color: #2e7d32;
 }
 
 .status-completed {
+  background-color: #e3f2fd;
+  color: #1565c0;
   background-color: #e3f2fd;
   color: #1565c0;
 }
@@ -355,9 +362,13 @@
 .status-planning {
   background-color: #fff8e1;
   color: #f57f17;
+  background-color: #fff8e1;
+  color: #f57f17;
 }
 
 .status-off-track {
+  background-color: #ffebee;
+  color: #c62828;
   background-color: #ffebee;
   color: #c62828;
 }
@@ -504,10 +515,10 @@
   transition: width 0.5s ease;
 }
 
-.detail-progress-fill.status-on-track  { background-color: #1a1a1a; }
-.detail-progress-fill.status-completed { background-color: #1a1a1a; }
-.detail-progress-fill.status-planning  { background-color: #1a1a1a; }
-.detail-progress-fill.status-off-track { background-color: #1a1a1a; }
+.detail-progress-fill.status-on-track  { background-color: #2e7d32; }
+.detail-progress-fill.status-completed { background-color: #1565c0; }
+.detail-progress-fill.status-planning  { background-color: #f57f17; }
+.detail-progress-fill.status-off-track { background-color: #c62828; }
 
 .detail-progress-label {
   font-size: 11px;
@@ -666,10 +677,12 @@
   height: 56px;
   border-radius: 50%;
   background: #ffebee;
+  background: #ffebee;
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto 16px;
+  color: #c62828;
   color: #c62828;
 }
 
@@ -726,13 +739,12 @@
 }
 
 .projects-btn-danger {
-  background-color: transparent;
-  color: #c62828;
-  border: 1px solid #ffcdd2;
+  background-color: #c62828;
+  color: white;
 }
 
 .projects-btn-danger:hover {
-  background-color: #ffebee;
+  background-color: #b71c1c;
 }
 
 /* ─── Form Fields ─────────────────────────────────────────────────────────── */
