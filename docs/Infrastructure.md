@@ -144,7 +144,51 @@ To keep settings organized, the application groups them into categories. To over
 
 This approach allows the API to map flat environment variables directly into structured C# Options classes. To ensure stability, the API employs a **Fail-Fast** principle: using `.ValidateOnStart()`, the app will refuse to boot if a required configuration is missing or invalid (e.g., using HTTP in production). This ensures configuration errors are caught during deployment rather than as runtime failures.
 
-### Variable Manifest
+## Logs
+
+Every service writes to stdout, and Docker stores that on the host as JSON under
+`/var/lib/docker/containers/<id>/`. Left alone, that file only ever grows — a
+service stuck in an exception loop can fill the disk in hours, and once the disk
+is full Postgres can't write and the API starts returning 500s.
+
+So the base compose file defines the log driver once, as a YAML anchor, and every
+service inherits it:
+
+```yaml
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '5'
+```
+
+That caps each container at **50 MiB** (5 files × 10 MiB) and rotates the oldest
+one out. It applies in dev and prod alike, because it lives in the base file.
+
+Two things to know:
+
+- **Rotation means old logs are gone.** `docker compose logs` only shows what's
+  still inside that window. If you need history that survives rotation, the logs
+  have to be shipped somewhere (Loki, Better Stack, and so on) — that isn't set
+  up yet.
+- **Existing containers keep their old settings.** Log config is fixed when a
+  container is created, so anything started before this change still has no cap.
+  Recreate to pick it up:
+
+  ```bash
+  docker compose up -d --force-recreate
+  ```
+
+  To check what a container actually got:
+
+  ```bash
+  docker inspect echo-api-1 --format '{{json .HostConfig.LogConfig}}'
+  ```
+
+If you add a new service, give it `logging: *default-logging`. Nothing enforces
+this — a service without it silently falls back to uncapped logs.
+
+## Environment variables
 
 The following table lists all available configuration variables. If you add a new variable to the code, update this table to maintain the source of truth.
 
