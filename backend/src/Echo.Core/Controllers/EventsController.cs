@@ -1,64 +1,58 @@
 using Echo.Application.Pagination;
-using Echo.Application.Query;
 using Echo.Core.Controllers.Base;
 using Echo.Core.Dtos;
 using Echo.Core.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Echo.Core.Controllers;
 
 public class EventsController(EventService service) : CoreBaseController
 {
-    private readonly EventService _service = service;
-
-    [HttpGet("summary")]
-    public async Task<ActionResult> GetSummaryAsync(CancellationToken ct)
-    {
-        var response = await _service.GetSummaryAsync(GetCongregationId(), ct);
-        return response.ToActionResult();
-    }
-
     [HttpGet]
-    public async Task<ActionResult> GetPageAsync(
-        [FromQuery] PaginationParameters paginationParameters,
-        [FromQuery] QueryParameters? queryParameters,
+    public async Task<ActionResult> List(
+        [FromQuery] EventFilters filters,
+        [FromQuery] PaginationRequest pagination,
         CancellationToken ct
     )
     {
-        var response = await _service.GetPageAsync(
-            GetCongregationId(),
-            paginationParameters,
-            queryParameters,
-            ct
-        );
+        var response = await service.List(GetCongregationId(), filters, pagination, ct);
         return response.ToActionResult();
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult> GetByIdAsync(Guid id, CancellationToken ct)
+    public async Task<ActionResult> GetById(Guid id, CancellationToken ct)
     {
-        var response = await _service.GetByIdAsync(id, GetCongregationId(), ct);
+        var response = await service.GetById(id, GetCongregationId(), ct);
         return response.ToActionResult();
     }
 
     [HttpPost]
-    public async Task<ActionResult> CreateAsync(EventCreateDto dto, CancellationToken ct)
+    public async Task<ActionResult> Create(EventCreateDto dto, CancellationToken ct)
     {
-        var response = await _service.CreateAsync(GetCongregationId(), dto, ct);
+        var response = await service.Create(GetCongregationId(), dto, ct);
         return response.ToActionResult();
     }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult> UpdateAsync(Guid id, EventUpdateDto dto, CancellationToken ct)
+    public async Task<ActionResult> Update(Guid id, EventUpdateDto dto, CancellationToken ct)
     {
-        var response = await _service.UpdateAsync(GetCongregationId(), id, dto, ct);
+        var response = await service.Update(GetCongregationId(), id, dto, ct);
         return response.ToActionResult();
     }
 
     [HttpDelete("{id}")]
-    public async Task<ActionResult> DeleteAsync(Guid id, CancellationToken ct)
+    public async Task<ActionResult> Delete(Guid id, CancellationToken ct)
     {
-        var response = await _service.DeleteAsync(id, GetCongregationId(), ct);
+        var response = await service.Delete(id, GetCongregationId(), ct);
         return response.ToActionResult();
+    }
+
+    [HttpGet("search")]
+    [EnableRateLimiting("search")]
+    public async Task<ActionResult> Search([FromQuery] string q, CancellationToken ct)
+    {
+        var res = await service.Search(GetCongregationId(), q, ct);
+        return res.ToActionResult();
     }
 }

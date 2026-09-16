@@ -17,8 +17,13 @@ public class UserConfiguration : PrimaryEntityConfigurationBase<User>
             .HasComputedColumnSql(
                 $"TRIM(COALESCE(\"{nameof(User.LastName)}\", '') || ' ' || COALESCE(\"{nameof(User.FirstName)}\", '') || ' ' || COALESCE(\"{nameof(User.OtherNames)}\", ''))",
                 stored: true
-            );
+            )
+            .ValueGeneratedOnAddOrUpdate();
 
         builder.HasIndex(m => m.Name).HasMethod("GIN").HasOperators("gin_trgm_ops");
+
+        builder
+            .HasIndex(u => new { u.Name, u.Id })
+            .HasFilter($"\"{nameof(User.DeletedAt)}\" IS NULL");
     }
 }

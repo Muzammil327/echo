@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 using Echo.Api.Extensions;
-using Echo.Application.Extensions;
+using Echo.Application.Extensions.DI;
 using Echo.Auth.Extensions;
 using Echo.Core.Extensions;
 using Echo.Domain.Data;
@@ -14,23 +14,25 @@ builder.Services.AddDbContext(builder.Configuration);
 builder.Services.AddSwaggerDocumentation();
 builder.Services.AddOpenApi();
 builder.Services.AddApiVersioningSetup();
-builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddRateLimitingToEndpoints();
 builder.Services.AddHealthCheckServices();
+builder.Services.AddJwtAuthentication(builder.Configuration);
+builder.Services.AddFrontendCors(builder.Configuration);
 builder.Services.AddRouting(options =>
 {
     options.LowercaseUrls = true;
     options.LowercaseQueryStrings = true;
 });
+
 builder
     .Services.AddControllers()
     .AddJsonOptions(options =>
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter())
     );
 
-builder.Services.AddCoreServices();
+builder.Services.AddCoreServices(builder.Configuration);
 builder.Services.AddAuthServices(builder.Configuration);
-builder.Services.AddApplicationServices();
+builder.Services.InjectApplicationServices();
 builder.Services.AddInfrastructureServices();
 
 var app = builder.Build();
@@ -49,6 +51,8 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi().AllowAnonymous();
 }
 
+app.UseRouting();
+app.UseCors();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();

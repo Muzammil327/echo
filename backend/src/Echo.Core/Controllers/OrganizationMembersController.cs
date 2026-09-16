@@ -1,5 +1,4 @@
 using Echo.Application.Pagination;
-using Echo.Application.Query;
 using Echo.Core.Controllers.Base;
 using Echo.Core.Dtos;
 using Echo.Core.Services;
@@ -9,82 +8,82 @@ namespace Echo.Core.Controllers;
 
 public class OrganizationMembersController(OrganizationMemberService service) : CoreBaseController
 {
-    private readonly OrganizationMemberService _service = service;
-
     [HttpGet]
-    public async Task<ActionResult> GetPageAsync(
-        [FromQuery] PaginationParameters paginationParameters,
-        [FromQuery] QueryParameters? queryParameters,
+    public async Task<ActionResult> List(
+        [FromQuery] OrganizationMemberFilters filters,
+        [FromQuery] PaginationRequest pagination,
         CancellationToken ct
     )
     {
-        var response = await _service.GetPageAsync(
+        var response = await service.List(GetCongregationId(), filters, pagination, ct);
+        return response.ToActionResult();
+    }
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult> GetById(Guid id, CancellationToken ct)
+    {
+        var response = await service.GetById(id, GetCongregationId(), ct);
+        return response.ToActionResult();
+    }
+
+    [HttpGet("member{id}")]
+    public async Task<ActionResult> ListByMemberId(
+        Guid id,
+        [FromQuery] OrganizationMemberFilters filters,
+        [FromQuery] PaginationRequest pagination,
+        CancellationToken ct
+    )
+    {
+        var response = await service.ListByMemberId(
             GetCongregationId(),
-            paginationParameters,
-            queryParameters,
+            id,
+            filters,
+            pagination,
             ct
         );
         return response.ToActionResult();
     }
 
-    [HttpGet("{id}")]
-    public async Task<ActionResult> GetByIdAsync(Guid id, CancellationToken ct)
-    {
-        var response = await _service.GetByIdAsync(id, GetCongregationId(), ct);
-        return response.ToActionResult();
-    }
-
-    [HttpGet("member{id}")]
-    public async Task<ActionResult> GetByMemberId(
-        [FromQuery] PaginationParameters paginationParameters,
-        [FromQuery] QueryParameters queryParameters,
-        Guid id,
-        CancellationToken ct
-    )
-    {
-        var response = await _service.GetByMemberId(paginationParameters, queryParameters, id, ct);
-        return response.ToActionResult();
-    }
-
     [HttpGet("organizations{id}")]
-    public async Task<ActionResult> GetByOrganizationId(
-        [FromQuery] PaginationParameters paginationParameters,
-        [FromQuery] QueryParameters queryParameters,
+    public async Task<ActionResult> ListByOrganizationId(
         Guid id,
+        [FromQuery] OrganizationMemberFilters filters,
+        [FromQuery] PaginationRequest pagination,
         CancellationToken ct
     )
     {
-        var response = await _service.GetByOrganizationId(
-            paginationParameters,
-            queryParameters,
+        var response = await service.ListByOrganizationId(
+            GetCongregationId(),
             id,
+            filters,
+            pagination,
             ct
         );
         return response.ToActionResult();
     }
 
     [HttpPost]
-    public async Task<ActionResult> CreateAsync(OrganizationCreateDto dto, CancellationToken ct = default)
+    public async Task<ActionResult> Create(OrganizationMemberCreateDto dto, CancellationToken ct)
     {
-        var response = await _service.CreateAsync(GetCongregationId(), dto, ct);
+        var response = await service.Create(GetCongregationId(), dto, ct);
         return response.ToActionResult();
     }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult> UpdateAsync(
+    public async Task<ActionResult> Update(
         Guid id,
         OrganizationMemberUpdateDto dto,
         CancellationToken ct
     )
     {
-        var response = await _service.UpdateAsync(GetCongregationId(), id, dto, ct);
+        var response = await service.Update(GetCongregationId(), id, dto, ct);
         return response.ToActionResult();
     }
 
     [HttpDelete("{id}")]
-    public async Task<ActionResult> DeleteAsync(Guid id, CancellationToken ct)
+    public async Task<ActionResult> Delete(Guid id, CancellationToken ct)
     {
-        var response = await _service.DeleteAsync(id, GetCongregationId(), ct);
+        var response = await service.Delete(id, GetCongregationId(), ct);
         return response.ToActionResult();
     }
 }

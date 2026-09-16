@@ -252,6 +252,17 @@ namespace Echo.Infrastructure.Migrations
 
                     b.HasIndex("DeletedAt");
 
+                    b.HasIndex("Name");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "GIN");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("CongregationId", "Name")
+                        .IsUnique();
+
+                    b.HasIndex("Name", "Id")
+                        .HasFilter("\"DeletedAt\" IS NULL");
+
                     b.ToTable("Assets");
                 });
 
@@ -284,6 +295,11 @@ namespace Echo.Infrastructure.Migrations
                     b.HasIndex("CongregationId");
 
                     b.HasIndex("DeletedAt");
+
+                    b.HasIndex("Name");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "GIN");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
 
                     b.HasIndex("CongregationId", "Name")
                         .IsUnique();
@@ -325,11 +341,7 @@ namespace Echo.Infrastructure.Migrations
                     b.Property<DateOnly>("ForDate")
                         .HasColumnType("date");
 
-                    b.Property<string>("GuestName")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.Property<Guid?>("MemberId")
+                    b.Property<Guid>("MemberId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
@@ -343,6 +355,9 @@ namespace Echo.Infrastructure.Migrations
                     b.HasIndex("ForDate");
 
                     b.HasIndex("MemberId");
+
+                    b.HasIndex("ForDate", "Id")
+                        .HasFilter("\"DeletedAt\" IS NULL");
 
                     b.ToTable("AttendanceRecords");
                 });
@@ -380,6 +395,11 @@ namespace Echo.Infrastructure.Migrations
 
                     b.HasIndex("DeletedAt");
 
+                    b.HasIndex("Name");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "GIN");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
+
                     b.HasIndex("AttendanceTypeId", "Name")
                         .IsUnique();
 
@@ -415,6 +435,11 @@ namespace Echo.Infrastructure.Migrations
                     b.HasIndex("CongregationId");
 
                     b.HasIndex("DeletedAt");
+
+                    b.HasIndex("Name");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "GIN");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
 
                     b.HasIndex("CongregationId", "Name")
                         .IsUnique();
@@ -485,6 +510,14 @@ namespace Echo.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Name");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "GIN");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("CreatedAt", "Id")
+                        .HasFilter("\"DeletedAt\" IS NULL");
+
                     b.ToTable("Congregations");
                 });
 
@@ -545,12 +578,20 @@ namespace Echo.Infrastructure.Migrations
 
                     b.HasIndex("DeletedAt");
 
+                    b.HasIndex("Name");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "GIN");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
+
                     b.HasIndex("OrganizationId");
 
                     b.HasIndex("OrganizerId");
 
                     b.HasIndex("CongregationId", "Name")
                         .IsUnique();
+
+                    b.HasIndex("StartDate", "Id")
+                        .HasFilter("\"DeletedAt\" IS NULL");
 
                     b.ToTable("Events");
                 });
@@ -589,6 +630,9 @@ namespace Echo.Infrastructure.Migrations
 
                     b.HasIndex("MemberId");
 
+                    b.HasIndex("CheckInTime", "Id")
+                        .HasFilter("\"DeletedAt\" IS NULL");
+
                     b.HasIndex("EventId", "MemberId")
                         .IsUnique();
 
@@ -600,9 +644,6 @@ namespace Echo.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
-
-                    b.Property<TimeOnly>("CheckInTime")
-                        .HasColumnType("time without time zone");
 
                     b.Property<Guid>("CongregationId")
                         .HasColumnType("uuid");
@@ -634,6 +675,9 @@ namespace Echo.Infrastructure.Migrations
 
                     b.HasIndex("EventId", "MemberId")
                         .IsUnique();
+
+                    b.HasIndex("RegistrationDate", "Id")
+                        .HasFilter("\"DeletedAt\" IS NULL");
 
                     b.ToTable("EventRegistrations");
                 });
@@ -707,10 +751,6 @@ namespace Echo.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("MemberActivityStatus")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
@@ -741,6 +781,10 @@ namespace Echo.Infrastructure.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CongregationId");
@@ -751,6 +795,9 @@ namespace Echo.Infrastructure.Migrations
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "GIN");
                     NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("Name", "Id")
+                        .HasFilter("\"DeletedAt\" IS NULL");
 
                     b.ToTable("Members");
                 });
@@ -787,8 +834,16 @@ namespace Echo.Infrastructure.Migrations
 
                     b.HasIndex("DeletedAt");
 
+                    b.HasIndex("Name");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "GIN");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
+
                     b.HasIndex("CongregationId", "Name")
                         .IsUnique();
+
+                    b.HasIndex("Name", "Id")
+                        .HasFilter("\"DeletedAt\" IS NULL");
 
                     b.ToTable("Organizations");
                 });
@@ -830,6 +885,9 @@ namespace Echo.Infrastructure.Migrations
                     b.HasIndex("DeletedAt");
 
                     b.HasIndex("OrganizationId");
+
+                    b.HasIndex("CreatedAt", "Id")
+                        .HasFilter("\"DeletedAt\" IS NULL");
 
                     b.HasIndex("MemberId", "OrganizationId")
                         .IsUnique();
@@ -892,6 +950,14 @@ namespace Echo.Infrastructure.Migrations
 
                     b.HasIndex("ManagerId");
 
+                    b.HasIndex("Name");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "GIN");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("StartDate", "Id")
+                        .HasFilter("\"DeletedAt\" IS NULL");
+
                     b.ToTable("Projects");
                 });
 
@@ -924,6 +990,11 @@ namespace Echo.Infrastructure.Migrations
                     b.HasIndex("CongregationId");
 
                     b.HasIndex("DeletedAt");
+
+                    b.HasIndex("Name");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "GIN");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
 
                     b.HasIndex("CongregationId", "Name")
                         .IsUnique();
@@ -972,6 +1043,9 @@ namespace Echo.Infrastructure.Migrations
                     b.HasIndex("DeletedAt");
 
                     b.HasIndex("ProjectId");
+
+                    b.HasIndex("DateContributed", "Id")
+                        .HasFilter("\"DeletedAt\" IS NULL");
 
                     b.ToTable("ProjectContributions");
                 });
@@ -1025,6 +1099,9 @@ namespace Echo.Infrastructure.Migrations
 
                     b.HasIndex("MemberId");
 
+                    b.HasIndex("CollectionDate", "Id")
+                        .HasFilter("\"DeletedAt\" IS NULL");
+
                     b.ToTable("Tithes");
                 });
 
@@ -1070,6 +1147,9 @@ namespace Echo.Infrastructure.Migrations
 
                     b.HasIndex("DeletedAt");
 
+                    b.HasIndex("TransactionDate", "Id")
+                        .HasFilter("\"DeletedAt\" IS NULL");
+
                     b.ToTable("Transactions");
                 });
 
@@ -1106,6 +1186,11 @@ namespace Echo.Infrastructure.Migrations
                     b.HasIndex("CongregationId");
 
                     b.HasIndex("DeletedAt");
+
+                    b.HasIndex("Name");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "GIN");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
 
                     b.HasIndex("CongregationId", "Name")
                         .IsUnique();
@@ -1182,6 +1267,9 @@ namespace Echo.Infrastructure.Migrations
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "GIN");
                     NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("Name", "Id")
+                        .HasFilter("\"DeletedAt\" IS NULL");
 
                     b.ToTable("Users");
                 });
@@ -1362,13 +1450,13 @@ namespace Echo.Infrastructure.Migrations
                     b.HasOne("Echo.Domain.Entities.Core.Event", "Event")
                         .WithMany()
                         .HasForeignKey("EventId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("Echo.Domain.Entities.Core.Member", "Member")
                         .WithMany()
                         .HasForeignKey("MemberId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Congregation");
@@ -1389,13 +1477,13 @@ namespace Echo.Infrastructure.Migrations
                     b.HasOne("Echo.Domain.Entities.Core.Event", "Event")
                         .WithMany()
                         .HasForeignKey("EventId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("Echo.Domain.Entities.Core.Member", "Member")
                         .WithMany()
                         .HasForeignKey("MemberId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Congregation");
@@ -1438,13 +1526,13 @@ namespace Echo.Infrastructure.Migrations
                     b.HasOne("Echo.Domain.Entities.Core.Member", "Member")
                         .WithMany()
                         .HasForeignKey("MemberId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("Echo.Domain.Entities.Core.Organization", "Organization")
                         .WithMany()
                         .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Congregation");
@@ -1503,7 +1591,7 @@ namespace Echo.Infrastructure.Migrations
                     b.HasOne("Echo.Domain.Entities.Core.Project", "Project")
                         .WithMany()
                         .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Congregation");

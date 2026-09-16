@@ -1,28 +1,18 @@
-using Echo.Core.Dtos.Interfaces;
-
 namespace Echo.Core.Dtos;
 
-public record EventAttendanceCreateDto : IPrimaryCreateDto
+public record EventAttendanceCreateDto
 {
     public Guid MemberId { get; init; }
     public Guid EventId { get; init; }
     public TimeOnly CheckInTime { get; init; }
 }
 
-public record EventAttendanceUpdateDto : IPrimaryUpdateDto
+public record EventAttendanceUpdateDto
 {
-    public TimeOnly CheckInTime { get; init; }
+    public TimeOnly? CheckInTime { get; init; }
 }
 
-public record EventAttendanceListResponseDto : IPrimaryListResponseDto, Application.Dtos.Interfaces.IPrimaryListResponseDto
-{
-    public Guid Id { get; init; }
-    public required string MemberName { get; init; }
-    public required string EventName { get; init; }
-    public TimeOnly CheckInTime { get; init; }
-}
-
-public record EventAttendanceResponseDto : IPrimaryResponseDto
+public record EventAttendanceResponseDto
 {
     public Guid Id { get; init; }
     public Guid MemberId { get; init; }
@@ -31,4 +21,10 @@ public record EventAttendanceResponseDto : IPrimaryResponseDto
     public required string EventName { get; init; }
     public TimeOnly CheckInTime { get; init; }
     public DateTime CreatedAt { get; init; }
+}
+
+public record EventAttendanceCursor
+{
+    public TimeOnly CheckInTime { get; init; }
+    public Guid Id { get; init; }
 }
