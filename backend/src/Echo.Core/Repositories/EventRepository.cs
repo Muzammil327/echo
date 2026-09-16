@@ -1,106 +1,101 @@
-using Echo.Application.Extensions.QueryMethods;
-using Echo.Application.Pagination;
-using Echo.Application.Query;
+using Echo.Application.Query.Extensions;
 using Echo.Core.Dtos;
-using Echo.Core.Repositories.Base;
 using Echo.Domain.Data;
 using Echo.Domain.Entities.Core;
 using Microsoft.EntityFrameworkCore;
 
 namespace Echo.Core.Repositories;
 
-public class EventRepository(AppDbContext context) : PrimaryRepositoryBase<Event>(context)
+public class EventRepository(AppDbContext context)
 {
-    public async Task<PagedResponse<EventListResponseDto>> GetPageAsync(
+    private readonly DbSet<Event> _dbSet = context.Set<Event>();
+
+    public async Task<List<Event>> List(
         Guid congregationId,
-        PaginationParameters paginationParameters,
-        QueryParameters? queryParameters,
-        CancellationToken ct = default
+        EventFilters filters,
+        EventCursor? cursor,
+        int pageSize,
+        CancellationToken ct
     )
     {
-        var query = DbSet
+        return await _dbSet
             .AsNoTracking()
-            .ApplySoftDeleteFilter()
-            .ApplySearchFilter(queryParameters)
-            .ApplyDateFilters(queryParameters)
-            .Where(e => e.CongregationId == congregationId);
-
-        int totalRecords = await query.CountAsync(ct);
-
-        var records = await query
-            .OrderBy(e => e.Id)
-            .Select(e => new EventListResponseDto
-            {
-                Id = e.Id,
-                OrganizationName = e.Organization.Name,
-                OrganizerName = e.Organizer.Name,
-                Name = e.Name,
-                StartDate = e.StartDate,
-                EndDate = e.EndDate,
-                Location = e.Location,
-            })
-            .ApplyPagination(paginationParameters)
-            .ToListAsync(ct);
-
-        return new PagedResponse<EventListResponseDto>(records, paginationParameters, totalRecords);
-    }
-
-    public async Task<EventResponseDto?> GetByIdAsync(
-        Guid id,
-        Guid congregationId,
-        CancellationToken ct = default
-    )
-    {
-        return await DbSet
-            .AsNoTracking()
-            .ApplySoftDeleteFilter()
-            .Where(e => e.Id == id && e.CongregationId == congregationId)
-            .Select(e => new EventResponseDto
-            {
-                Id = e.Id,
-                OrganizationId = e.OrganizationId,
-                OrganizationName = e.Organization.Name,
-                OrganizerId = e.Organizer.Id,
-                OrganizerName = e.Organizer.Name,
-                Name = e.Name,
-                StartDate = e.StartDate,
-                EndDate = e.EndDate,
-                StartTime = e.StartTime,
-                EndTime = e.EndTime,
-                Location = e.Location,
-                Capacity = e.Capacity,
-                Description = e.Description,
-                CreatedAt = e.CreatedAt,
-            })
-            .FirstOrDefaultAsync(ct);
-    }
-
-    public async Task<EventSummaryDto> GetSummaryAsync(Guid congregationId, CancellationToken ct = default)
-    {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-
-        var eventStats = await DbSet
-            .ApplySoftDeleteFilter()
+            .FilterSoftDeleted()
             .Where(e => e.CongregationId == congregationId)
-            .GroupBy(e => 1)
-            .Select(g => new
-            {
-                TotalEvents = g.Count(),
-                UpcomingEvents = g.Count(e => e.StartDate >= today),
-                PastEvents = g.Count(e => e.EndDate < today),
-            })
+            .Include(e => e.Organization)
+            .Include(e => e.Organizer)
+            .Filter(filters)
+            .OrderBy(e => e.StartDate)
+            .ThenBy(e => e.Id)
+            .Paginate(cursor, pageSize)
+            .ToListAsync(ct);
+    }
+
+    public async Task<Event?> GetById(Guid id, Guid congregationId, CancellationToken ct = default)
+    {
+        return await _dbSet
+            .FilterSoftDeleted()
+            .Where(e => e.Id == id && e.CongregationId == congregationId)
+            .Include(e => e.Organizer)
+            .Include(e => e.Organization)
             .FirstOrDefaultAsync(ct);
+    }
 
-        var totalRegistrations = await Context.Set<EventRegistration>()
-            .Where(r => r.DeletedAt == null && r.CongregationId == congregationId)
-            .CountAsync(ct);
+    public void Create(Event entity)
+    {
+        _dbSet.Add(entity);
+    }
 
-        return new EventSummaryDto
-        {
-            TotalEvents = eventStats?.TotalEvents ?? 0,
-            UpcomingEvents = eventStats?.UpcomingEvents ?? 0,
-            PastEvents = eventStats?.PastEvents ?? 0,
-            TotalRegistrations = totalRegistrations,
-        };
+    public void SoftDelete(Event entity)
+    {
+        entity.DeletedAt = DateTime.UtcNow;
+    }
+
+    public async Task<List<Event>> Search(Guid congregationId, string name, CancellationToken ct)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .FilterSoftDeleted()
+            .Where(a => a.CongregationId == congregationId)
+            .SearchName(name)
+            .ToListAsync(ct);
+    }
+}
+
+internal static class EventQueryExtensions
+{
+    internal static IQueryable<Event> Filter(this IQueryable<Event> query, EventFilters filters)
+    {
+        var dateToday = DateOnly.FromDateTime(TimeProvider.System.GetUtcNow().DateTime);
+
+        query = filters.StartDate is not null
+            ? query.Where(e => e.StartDate == filters.StartDate)
+            : query.Where(e => e.StartDate > dateToday);
+
+        if (filters.OrganizerId is not null)
+            query = query.Where(e => e.OrganizerId == filters.OrganizerId);
+
+        if (filters.OrganizationId is not null)
+            query = query.Where(e => e.OrganizationId == filters.OrganizationId);
+
+        if (filters.Name is not null)
+            query = query.Where(e => EF.Functions.ILike(e.Name, $"%{filters.Name}%"));
+
+        return query;
+    }
+
+    internal static IQueryable<Event> Paginate(
+        this IQueryable<Event> query,
+        EventCursor? cursor,
+        int pageSize
+    )
+    {
+        if (cursor is not null)
+            query = query.Where(e =>
+                e.StartDate > cursor.StartDate
+                || (e.StartDate == cursor.StartDate && e.Id > cursor.Id)
+            );
+
+        return query.Take(pageSize);
     }
 }

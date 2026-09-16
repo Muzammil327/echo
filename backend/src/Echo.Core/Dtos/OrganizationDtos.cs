@@ -1,29 +1,26 @@
-using Echo.Core.Dtos.Interfaces;
+using System.ComponentModel.DataAnnotations;
 
 namespace Echo.Core.Dtos;
 
-public record OrganizationCreateDto : IPrimaryCreateDto
+public record OrganizationCreateDto
 {
+    [Required, StringLength(100, MinimumLength = 1)]
     public required string Name { get; init; }
+
+    [StringLength(2000)]
     public string? Description { get; init; }
 }
 
-public record OrganizationUpdateDto : IPrimaryUpdateDto
+public record OrganizationUpdateDto
 {
-    public required string Name { get; init; }
+    [StringLength(100)]
+    public string? Name { get; init; }
+
+    [StringLength(2000)]
     public string? Description { get; init; }
 }
 
-public record OrganizationListResponseDto
-    : IPrimaryListResponseDto,
-        Application.Dtos.Interfaces.IPrimaryListResponseDto
-{
-    public Guid Id { get; init; }
-    public required string Name { get; init; }
-    public string? Description { get; init; }
-}
-
-public record OrganizationResponseDto : IPrimaryResponseDto
+public record OrganizationResponseDto
 {
     public Guid Id { get; init; }
     public required string Name { get; init; }
@@ -31,10 +28,14 @@ public record OrganizationResponseDto : IPrimaryResponseDto
     public DateTime CreatedAt { get; init; }
 }
 
-public record OrganizationSummaryDto
+public record OrganizationSearchResultDto
 {
-    public required int TotalOrganizations { get; init; }
-    public required int TotalOrganizationMembers { get; init; }
-    public required int NewOrganizationsThisMonth { get; init; }
-    public required decimal AverageMembersPerOrganization { get; init; }
+    public Guid Id { get; init; }
+    public required string Name { get; init; }
+}
+
+public record OrganizationCursor
+{
+    public string Name { get; init; } = string.Empty;
+    public Guid Id { get; init; }
 }

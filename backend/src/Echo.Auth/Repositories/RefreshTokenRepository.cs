@@ -1,18 +1,21 @@
-using Echo.Application.Extensions.QueryMethods;
+using Echo.Application.Query.Extensions;
 using Echo.Domain.Data;
 using Echo.Domain.Entities.Auth;
 using Microsoft.EntityFrameworkCore;
 
 namespace Echo.Auth.Repositories;
 
-public class RefreshTokenRepository(AppDbContext context)
+public class RefreshTokenRepository(AppDbContext context, TimeProvider timeProvider)
 {
     private readonly DbSet<RefreshToken> _tokens = context.Set<RefreshToken>();
 
-    public async Task<RefreshToken?> GetTokenRecordByHashWithUser(string hashedInput, CancellationToken ct = default)
+    public async Task<RefreshToken?> GetTokenRecordByHashWithUser(
+        string hashedInput,
+        CancellationToken ct = default
+    )
     {
         var tokenObject = await _tokens
-            .ApplySoftDeleteFilter()
+            .FilterSoftDeleted()
             .Include(x => x.User)
             .FirstOrDefaultAsync(x => x.TokenHash == hashedInput, ct);
 
@@ -25,30 +28,37 @@ public class RefreshTokenRepository(AppDbContext context)
         return true;
     }
 
-    public async Task<bool> Revoke(Guid tokenId, Guid? replacedByTokenId = null, CancellationToken ct = default)
+    public async Task<bool> Revoke(
+        Guid tokenId,
+        Guid? replacedByTokenId = null,
+        CancellationToken ct = default
+    )
     {
         var existing = await _tokens
-            .ApplySoftDeleteFilter()
+            .FilterSoftDeleted()
             .FirstOrDefaultAsync(x => x.Id == tokenId, ct);
 
         if (existing is null)
             return false;
 
-        existing.RevokedAt = DateTime.UtcNow;
+        existing.RevokedAt = timeProvider.GetUtcNow().UtcDateTime;
         existing.ReplacedByTokenId = replacedByTokenId;
 
         return true;
     }
 
-    public async Task<bool> RevokeAllActiveSessionsForUser(Guid userId, CancellationToken ct = default)
+    public async Task<bool> RevokeAllActiveSessionsForUser(
+        Guid userId,
+        CancellationToken ct = default
+    )
     {
         var activeTokens = await _tokens
-            .ApplySoftDeleteFilter()
+            .FilterSoftDeleted()
             .Where(u => u.UserId == userId && u.RevokedAt == null)
             .ToListAsync(ct);
 
         foreach (var token in activeTokens)
-            token.RevokedAt = DateTime.UtcNow;
+            token.RevokedAt = timeProvider.GetUtcNow().UtcDateTime;
 
         return true;
     }

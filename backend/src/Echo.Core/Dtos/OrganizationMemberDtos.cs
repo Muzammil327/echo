@@ -1,9 +1,8 @@
-using Echo.Core.Dtos.Interfaces;
 using Echo.Domain.Enums;
 
 namespace Echo.Core.Dtos;
 
-public record OrganizationMemberCreateDto : IPrimaryCreateDto
+public record OrganizationMemberCreateDto
 {
     public Guid MemberId { get; init; }
     public Guid OrganizationId { get; init; }
@@ -11,22 +10,13 @@ public record OrganizationMemberCreateDto : IPrimaryCreateDto
     public DateOnly JoinedAt { get; init; }
 }
 
-public record OrganizationMemberUpdateDto : IPrimaryUpdateDto
+public record OrganizationMemberUpdateDto
 {
-    public MemberOrganizationalRole Role { get; init; }
-    public DateOnly JoinedAt { get; init; }
+    public MemberOrganizationalRole? Role { get; init; }
+    public DateOnly? JoinedAt { get; init; }
 }
 
-public record OrganizationMemberListResponseDto : IPrimaryListResponseDto, Application.Dtos.Interfaces.IPrimaryListResponseDto
-{
-    public Guid Id { get; init; }
-    public required string MemberName { get; init; }
-    public required string OrganizationName { get; init; }
-    public MemberOrganizationalRole Role { get; init; }
-    public DateOnly JoinedAt { get; init; }
-}
-
-public record OrganizationMemberResponseDto : IPrimaryResponseDto
+public record OrganizationMemberResponseDto
 {
     public Guid Id { get; init; }
     public Guid MemberId { get; init; }
@@ -36,4 +26,15 @@ public record OrganizationMemberResponseDto : IPrimaryResponseDto
     public MemberOrganizationalRole Role { get; init; }
     public DateOnly JoinedAt { get; init; }
     public DateTime CreatedAt { get; init; }
+}
+
+public record OrganizationMemberCursor
+{
+    public DateTime CreatedAt { get; init; }
+    public Guid Id { get; init; }
+}
+
+public record OrganizationMemberFilters
+{
+    public MemberOrganizationalRole? Role { get; init; }
 }

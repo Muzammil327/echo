@@ -1,50 +1,55 @@
-using Echo.Core.Dtos.Interfaces;
+using System.ComponentModel.DataAnnotations;
 using Echo.Domain.Enums;
 
 namespace Echo.Core.Dtos;
 
-public record ProjectContributionCreateDto : IPrimaryCreateDto
+public record ProjectContributionCreateDto
 {
     public Guid ProjectId { get; init; }
+
+    [Range(0.01, 1_000_000)]
     public decimal Amount { get; init; }
+
     public DateOnly DateContributed { get; init; }
     public PaymentMethod PaymentMethod { get; init; }
-    public required string ? Description { get; init; }
+
+    [StringLength(2000)]
+    public required string? Description { get; init; }
 }
 
-public record ProjectContributionUpdateDto : IPrimaryUpdateDto
+public record ProjectContributionUpdateDto
 {
-    public decimal Amount { get; init; }
-    public DateOnly DateContributed { get; init; }
-    public PaymentMethod PaymentMethod { get; init; }
-    public required string ? Description { get; init; }
+    [Range(0.01, 1_000_000)]
+    public decimal? Amount { get; init; }
+
+    public DateOnly? DateContributed { get; init; }
+    public PaymentMethod? PaymentMethod { get; init; }
+
+    [StringLength(2000)]
+    public string? Description { get; init; }
 }
 
-public record ProjectContributionListResponseDto : IPrimaryListResponseDto, Application.Dtos.Interfaces.IPrimaryListResponseDto
-{
-    public Guid Id { get; init; }
-    public required string  ProjectName { get; init; }
-    public decimal Amount { get; init; }
-    public DateOnly DateContributed { get; init; }
-    public PaymentMethod PaymentMethod { get; init; }
-}
-
-public record ProjectContributionResponseDto : IPrimaryResponseDto
+public record ProjectContributionResponseDto
 {
     public Guid Id { get; init; }
     public Guid ProjectId { get; init; }
-    public required string  ProjectName { get; init; }
+    public required string ProjectName { get; init; }
     public decimal Amount { get; init; }
     public DateOnly DateContributed { get; init; }
     public PaymentMethod PaymentMethod { get; init; }
-    public required string ? Description { get; init; }
+    public required string? Description { get; init; }
     public DateTime CreatedAt { get; init; }
 }
 
-public record ProjectContributionSummaryDto
+public record ProjectContributionCursor
 {
-    public required decimal TotalRaised { get; init; }
-    public required decimal TargetGoal { get; init; }
-    public required int Contributors { get; init; }
-    public required DateOnly? MostRecentEntryDate { get; init; }
+    public DateOnly DateContributed { get; init; }
+    public Guid Id { get; init; }
+}
+
+public record ProjectContributionFilters
+{
+    public decimal? Amount { get; init; }
+    public DateOnly? Date { get; init; }
+    public PaymentMethod? PaymentMethod { get; init; }
 }

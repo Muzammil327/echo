@@ -1,8 +1,5 @@
-using Echo.Application.Extensions.QueryMethods;
-using Echo.Application.Pagination;
-using Echo.Application.Query;
+using Echo.Application.Query.Extensions;
 using Echo.Core.Dtos;
-using Echo.Core.Repositories.Base;
 using Echo.Domain.Data;
 using Echo.Domain.Entities.Core;
 using Microsoft.EntityFrameworkCore;
@@ -10,130 +7,110 @@ using Microsoft.EntityFrameworkCore;
 namespace Echo.Core.Repositories;
 
 public class EventRegistrationRepository(AppDbContext context)
-    : PrimaryRepositoryBase<EventRegistration>(context)
 {
-    public async Task<PagedResponse<EventRegistrationListResponseDto>> GetPageAsync(
+    private readonly DbSet<EventRegistration> _dbSet = context.Set<EventRegistration>();
+
+    public async Task<List<EventRegistration>> List(
         Guid congregationId,
-        PaginationParameters paginationParameters,
-        QueryParameters? queryParameters,
-        CancellationToken ct = default
+        EventRegistrationCursor? cursor,
+        int pageSize,
+        CancellationToken ct
     )
     {
-        var query = DbSet
+        return await _dbSet
             .AsNoTracking()
-            .ApplySoftDeleteFilter()
-            .ApplyDateFilters(queryParameters)
-            .Where(e => e.CongregationId == congregationId);
-
-        int totalRecords = await query.CountAsync(ct);
-
-        var records = await query
-            .OrderBy(e => e.Id)
-            .Select(e => new EventRegistrationListResponseDto
-            {
-                Id = e.Id,
-                MemberName = e.Member.Name,
-                EventName = e.Event.Name,
-                RegistrationDate = e.RegistrationDate,
-            })
-            .ApplyPagination(paginationParameters)
+            .FilterSoftDeleted()
+            .Where(e => e.CongregationId == congregationId)
+            .Include(e => e.Member)
+            .Include(e => e.Event)
+            .OrderByDescending(e => e.RegistrationDate)
+            .ThenBy(e => e.Id)
+            .Paginate(cursor, pageSize)
             .ToListAsync(ct);
-
-        return new PagedResponse<EventRegistrationListResponseDto>(
-            records,
-            paginationParameters,
-            totalRecords
-        );
     }
 
-    public async Task<EventRegistrationResponseDto?> GetByIdAsync(
+    public async Task<EventRegistration?> GetById(
         Guid id,
         Guid congregationId,
-        CancellationToken ct = default
+        CancellationToken ct
     )
     {
-        return await DbSet
-            .AsNoTracking()
-            .ApplySoftDeleteFilter()
+        return await _dbSet
+            .FilterSoftDeleted()
             .Where(e => e.Id == id && e.CongregationId == congregationId)
-            .Select(e => new EventRegistrationResponseDto
-            {
-                Id = e.Id,
-                MemberId = e.MemberId,
-                MemberName = e.Member.Name,
-                EventId = e.EventId,
-                EventName = e.Event.Name,
-                RegistrationDate = e.RegistrationDate,
-                CreatedAt = e.CreatedAt,
-            })
+            .Include(e => e.Member)
+            .Include(e => e.Event)
             .FirstOrDefaultAsync(ct);
     }
 
-    public async Task<PagedResponse<EventRegistrationListResponseDto>> GetByMemberId(
-        PaginationParameters paginationParameters,
-        QueryParameters queryParameters,
-        Guid memberId,
-        CancellationToken ct
-    )
+    public void Create(EventRegistration entity)
     {
-        var query = DbSet
-            .AsNoTracking()
-            .ApplySoftDeleteFilter()
-            .ApplyDateFilters(queryParameters)
-            .Where(e => e.MemberId == memberId);
-
-        var totalCount = await query.CountAsync(ct);
-
-        var records = await query
-            .OrderBy(e => e.Id)
-            .Select(e => new EventRegistrationListResponseDto
-            {
-                Id = e.Id,
-                MemberName = e.Member.Name,
-                EventName = e.Event.Name,
-                RegistrationDate = e.RegistrationDate,
-            })
-            .ApplyPagination(paginationParameters)
-            .ToListAsync(ct);
-
-        return new PagedResponse<EventRegistrationListResponseDto>(
-            records,
-            paginationParameters,
-            totalCount
-        );
+        _dbSet.Add(entity);
     }
 
-    public async Task<PagedResponse<EventRegistrationListResponseDto>> GetByEventId(
-        PaginationParameters paginationParameters,
-        QueryParameters queryParameters,
+    public void SoftDelete(EventRegistration entity)
+    {
+        entity.DeletedAt = DateTime.UtcNow;
+    }
+
+    public async Task<List<EventRegistration>> ListByMemberId(
+        Guid congregationId,
+        Guid memberId,
+        EventRegistrationCursor? cursor,
+        int pageSize,
+        CancellationToken ct = default
+    )
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .FilterSoftDeleted()
+            .Where(e => e.CongregationId == congregationId)
+            .Where(e => e.MemberId == memberId)
+            .Include(e => e.Member)
+            .Include(e => e.Event)
+            .OrderByDescending(e => e.RegistrationDate)
+            .ThenBy(e => e.Id)
+            .Paginate(cursor, pageSize)
+            .ToListAsync(ct);
+    }
+
+    public async Task<List<EventRegistration>> ListByEventId(
+        Guid congregationId,
         Guid eventId,
+        EventRegistrationCursor? cursor,
+        int pageSize,
         CancellationToken ct
     )
     {
-        var query = DbSet
+        return await _dbSet
             .AsNoTracking()
-            .ApplySoftDeleteFilter()
-            .ApplyDateFilters(queryParameters)
-            .Where(e => e.MemberId == eventId);
-
-        var totalCount = await query.CountAsync(ct);
-
-        var records = await query
-            .OrderBy(e => e.Id)
-            .Select(e => new EventRegistrationListResponseDto
-            {
-                Id = e.Id,
-                MemberName = e.Member.Name,
-                EventName = e.Event.Name,
-                RegistrationDate = e.RegistrationDate,
-            })
-            .ApplyPagination(paginationParameters)
+            .FilterSoftDeleted()
+            .Where(e => e.CongregationId == congregationId)
+            .Where(e => e.EventId == eventId)
+            .Include(e => e.Member)
+            .Include(e => e.Event)
+            .OrderByDescending(e => e.RegistrationDate)
+            .ThenBy(e => e.Id)
+            .Paginate(cursor, pageSize)
             .ToListAsync(ct);
+    }
+}
 
-        return new PagedResponse<EventRegistrationListResponseDto>(
-            records,
-            paginationParameters,
-            totalCount
-        );
+internal static class EventRegistrationQueryExtensions
+{
+    internal static IQueryable<EventRegistration> Paginate(
+        this IQueryable<EventRegistration> query,
+        EventRegistrationCursor? cursor,
+        int pageSize
+    )
+    {
+        if (cursor is not null)
+            query = query.Where(e =>
+                e.RegistrationDate < cursor.RegistrationDate
+                || (e.RegistrationDate == cursor.RegistrationDate && e.Id > cursor.Id)
+            );
+
+        query = query.Take(pageSize);
+        return query;
     }
 }
