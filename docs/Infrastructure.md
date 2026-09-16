@@ -30,10 +30,33 @@ container serving static files, which the edge Nginx proxies to.
 **`db`** — Postgres 18. Data is stored in a volume so it survives restarts. In
 prod, only `api` can reach it — it's not open to the outside world.
 
-**`nginx`** — sits in front as the edge proxy. In prod, it routes `/api`, `/health`, and `/swagger` to the `api` container, and all other traffic `/` to the `client` container. In dev, it only routes API traffic.
+**`nginx`** — sits in front as the edge proxy. In prod, it routes `/api` (which covers the health endpoints at `/api/health/*`), `/scalar`, and `/swagger` to the `api` container, and all other traffic `/` to the `client` container. In dev, it only routes API traffic.
 
 **`migrator`** — runs database migrations. Doesn't start automatically — you run
 it yourself when you want to. See [Setup.md](GettingStarted.md) for when to use this.
+
+### Health endpoints
+
+Both endpoints are public and unauthenticated.
+
+**`/api/health/live`** — "is this process up?". Deliberately has no external
+dependencies, so a database outage never trips it. This is what the compose
+healthcheck polls, because a failure here means *restart the container*.
+
+**`/api/health/ready`** — "should traffic be routed here?". Runs the `database`
+check, which asserts two things:
+
+1. The database is reachable.
+2. Every migration compiled into this build has been applied — it compares them
+   against `__EFMigrationsHistory`.
+
+A half-migrated database fails this check with the names of the pending
+migrations, which is the point: the API can open a connection but any endpoint
+touching a missing table would return 500. Failure means *take this instance out
+of rotation*, not restart it.
+
+So if `/ready` returns 503 with `Database has N pending migration(s)`, run the
+`migrator` container — the database is up, it's just behind the code.
 
 ### Why there are three compose files
 

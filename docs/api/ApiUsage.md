@@ -147,10 +147,14 @@ List endpoints support pagination and query filtering via query parameters. The 
 To verify the API is running, use the health endpoint:
 
 ```bash
-curl http://localhost:8080/health/ready
+curl http://localhost:8080/api/health/ready
 ```
 
-This endpoint is public and is available without authentication.
+This endpoint is public and is available without authentication. It returns
+`200` only when the database is reachable and every migration has been applied;
+otherwise it returns `503` with the failing check. Use `/api/health/live` if you
+only want to know whether the process is up. See
+[Health endpoints](../Infrastructure.md#health-endpoints).
 
 ### Interactive API Documentation (Scalar)
 
