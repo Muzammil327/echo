@@ -228,8 +228,7 @@ optionally, the key that was active before the last rotation. Every token carrie
 header — a short fingerprint of the key that signed it — so the API knows which one to check
 against. Nobody has to name or track key versions by hand; the `kid` falls out of the key itself.
 
-That second slot is what makes a planned rotation graceful. Deploy a new key with the old one
-still on the ring and nobody is logged out; drop the old key later, once every token it signed has
+That second slot is what makes a planned rotation graceful. Deploy a new key with the old one still on the ring and nobody is logged out; drop the old key later, once every token it signed has
 expired on its own.
 
 ### Planned rotation
@@ -243,14 +242,12 @@ already generous. A day is comfortable.
    sh backend/tools/jwt-key-setup/SetupJwtKeys.sh env --rotate
    ```
 
-   This moves the current `Jwt__PublicKey` into `Jwt__PreviousPublicKey` and writes a fresh
-   pair into `Jwt__PrivateKey` / `Jwt__PublicKey`. For local dev, swap `env` for `user-secrets`.
+   This moves the current `Jwt__PublicKey` into `Jwt__PreviousPublicKey` and writes a fresh pair into `Jwt__PrivateKey` / `Jwt__PublicKey`. For local dev, swap `env` for `user-secrets`.
 
 2. **Deploy.** New logins get tokens signed by the new key. Tokens already in users' hands were
    signed by the old key, which is still on the ring, so they keep working. No forced logout.
 
-3. **Wait out the grace period** — anything longer than `AccessTokenLifetimeMinutes`. After that,
-   no valid token signed by the old key exists.
+3. **Wait out the grace period** — anything longer than `AccessTokenLifetimeMinutes`. After that, no valid token signed by the old key exists.
 
 4. **Clear `Jwt__PreviousPublicKey` and deploy again.** The old key is now out of circulation.
 
@@ -272,8 +269,7 @@ Skip the grace period entirely — that's the one case where a forced logout is 
 2. Deploy. Every token signed by the old key is rejected immediately.
 
 3. Refresh tokens are **not** signed by the JWT key — they're random values hashed in the database
-   — so rotating does not revoke them. A compromised signing key doesn't expose them, but if you
-   want everyone genuinely logged out, revoke the refresh tokens too.
+   — so rotating does not revoke them. A compromised signing key doesn't expose them, but if you want everyone genuinely logged out, revoke the refresh tokens too.
 
 ### Verifying a rotation
 

@@ -19,7 +19,7 @@ public sealed class JwtKeyRing : IDisposable
 {
     // 16 base64url characters of a SHA-256 thumbprint. Long enough that two keys will never
     // collide in practice, short enough to eyeball against a log line.
-    private const int KeyIdLength = 16;
+    private const int _keyIdLength = 16;
 
     private readonly List<RSA> _ownedKeys = [];
 
@@ -96,14 +96,17 @@ public sealed class JwtKeyRing : IDisposable
     private static string ComputeKeyId(RSA rsa)
     {
         var thumbprint = SHA256.HashData(rsa.ExportSubjectPublicKeyInfo());
-        return Base64UrlEncoder.Encode(thumbprint)[..KeyIdLength];
+        return Base64UrlEncoder.Encode(thumbprint)[.._keyIdLength];
     }
 
     /// <summary>
     /// Guards against the classic rotation slip of updating one half of the pair and leaving
     /// the other behind, which would otherwise only surface as tokens failing to validate.
     /// </summary>
-    private static void EnsurePublicHalfMatches(RsaSecurityKey activeKey, string configuredPublicKey)
+    private static void EnsurePublicHalfMatches(
+        RsaSecurityKey activeKey,
+        string configuredPublicKey
+    )
     {
         using var configured = Import(configuredPublicKey, "Jwt:PublicKey");
 
