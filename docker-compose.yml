@@ -1,9 +1,18 @@
 ---
+# Docker's default json-file driver never rotates. Every service below inherits
+# this anchor so no container can fill the host disk with logs (50 MiB ceiling
+# each: 10 MiB x 5 files).
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '5'
 services:
   api:
     build:
       context: .
       dockerfile: backend/src/Echo.Api/Dockerfile
+    logging: *default-logging
     environment:
       Database__Host: db
       Database__Port: ${DB_PORT}
@@ -30,6 +39,7 @@ services:
     networks: [echo-network]
   db:
     image: postgres:18
+    logging: *default-logging
     environment:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USERNAME}
@@ -46,6 +56,7 @@ services:
     networks: [echo-network]
   nginx:
     image: nginx:latest
+    logging: *default-logging
     volumes: [./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro]
     depends_on:
       api:
@@ -55,6 +66,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    logging: *default-logging
     depends_on:
       api:
         condition: service_healthy
@@ -63,6 +75,7 @@ services:
     build:
       context: .
       dockerfile: infra/postgres/backup/Dockerfile
+    logging: *default-logging
     environment:
       DB_NAME: ${DB_NAME}
       DB_USERNAME: ${DB_USERNAME}
@@ -83,6 +96,7 @@ services:
       context: .
       target: build
       dockerfile: backend/src/Echo.Api/Dockerfile
+    logging: *default-logging
     environment:
       Database__Host: db
       Database__Port: 5432

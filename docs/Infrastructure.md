@@ -85,6 +85,50 @@ To persist data in the containers, we've mounted certain named volumes that data
 | `postgres-data` | The actual database    | No — deleting this deletes your data.                |
 | `nuget-cache`   | Speeds up dev rebuilds | YES, safely. It'll just rebuild the cache next time. |
 
+## Logs
+
+Every service writes to stdout, and Docker stores that on the host as JSON under
+`/var/lib/docker/containers/<id>/`. Left alone, that file only ever grows — a
+service stuck in an exception loop can fill the disk in hours, and once the disk
+is full Postgres can't write and the API starts returning 500s.
+
+So the base compose file defines the log driver once, as a YAML anchor, and every
+service inherits it:
+
+```yaml
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '5'
+```
+
+That caps each container at **50 MiB** (5 files × 10 MiB) and rotates the oldest
+one out. It applies in dev and prod alike, because it lives in the base file.
+
+Two things to know:
+
+- **Rotation means old logs are gone.** `docker compose logs` only shows what's
+  still inside that window. If you need history that survives rotation, the logs
+  have to be shipped somewhere (Loki, Better Stack, and so on) — that isn't set
+  up yet.
+- **Existing containers keep their old settings.** Log config is fixed when a
+  container is created, so anything started before this change still has no cap.
+  Recreate to pick it up:
+
+  ```bash
+  docker compose up -d --force-recreate
+  ```
+
+  To check what a container actually got:
+
+  ```bash
+  docker inspect echo-api-1 --format '{{json .HostConfig.LogConfig}}'
+  ```
+
+If you add a new service, give it `logging: *default-logging`. Nothing enforces
+this — a service without it silently falls back to uncapped logs.
+
 ## Environment variables
 
 Checked against `.env.example` and the actual code as of 2026-07-31.
