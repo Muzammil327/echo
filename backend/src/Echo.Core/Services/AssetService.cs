@@ -1,53 +1,129 @@
-using AutoMapper;
 using Echo.Application.HttpResults;
 using Echo.Application.Pagination;
-using Echo.Application.Query;
+using Echo.Application.Services.Encoders;
+using Echo.Application.Services.Generators;
 using Echo.Core.Dtos;
+using Echo.Core.Mapping.AssetMapping;
 using Echo.Core.Repositories;
-using Echo.Core.Services.Base;
 using Echo.Domain.Data;
 using Echo.Domain.Entities.Core;
 
 namespace Echo.Core.Services;
 
-public class AssetService(AssetRepository repository, AppDbContext context, IMapper mapper)
-    : PrimaryServiceBase<Asset>(repository, context, mapper)
+public class AssetService(
+    AssetRepository repository,
+    AssetCategoryRepository categoryRepository,
+    IUnitOfWork unitOfWork,
+    IEncoder encoder,
+    IAssetMapper mapper,
+    IIdGenerator idGenerator
+)
 {
-    private readonly AssetRepository _assetRepository = repository;
-
-    public override async Task<IOperationResult> GetPageAsync(
+    public async Task<IOperationResult> List(
         Guid congregationId,
-        PaginationParameters paginationParameters,
-        QueryParameters? queryParameters,
-        CancellationToken ct = default
+        AssetFilters filters,
+        PaginationRequest pagination,
+        CancellationToken ct
     )
     {
-        var result = await _assetRepository.GetPageAsync(
+        var cursor = encoder.Decode<AssetCursor>(pagination.Cursor);
+        var entities = await repository.List(
             congregationId,
-            paginationParameters,
-            queryParameters,
+            filters,
+            cursor,
+            pagination.PageSize + 1,
             ct
         );
-        return new SuccessResult<PagedResponse<AssetListResponseDto>>(result);
+
+        var hasMore = entities.Count > pagination.PageSize;
+        if (hasMore)
+            entities.RemoveAt(entities.Count - 1);
+        var nextCursor = hasMore ? encoder.Encode(BuildCursor(entities.Last())) : null;
+
+        var data = mapper.ToListDto(entities);
+        var res = new PagedResponse<AssetResponseDto>(hasMore, nextCursor, data);
+        return new SuccessResult<PagedResponse<AssetResponseDto>>(res);
     }
 
-    public override async Task<IOperationResult> GetByIdAsync(
-        Guid id,
+    public async Task<IOperationResult> GetById(Guid id, Guid congregationId, CancellationToken ct)
+    {
+        var entity = await repository.GetById(id, congregationId, ct);
+
+        if (entity is null)
+            return new NotFoundResult(id.ToString());
+
+        var res = mapper.ToDto(entity);
+        return new SuccessResult<AssetResponseDto>(res);
+    }
+
+    public async Task<IOperationResult> Create(
         Guid congregationId,
-        CancellationToken ct = default
+        AssetCreateDto dto,
+        CancellationToken ct
     )
     {
-        var result = await _assetRepository.GetByIdAsync(id, congregationId, ct);
+        var entity = mapper.ToEntity(dto);
 
-        if (result is null)
-            return new NotFoundResult("Asset not found.");
+        var category = await categoryRepository.GetById(congregationId, entity.CategoryId, ct);
+        if (category is null)
+            return new ForeignKeyEntityNotFound(nameof(category));
 
-        return new SuccessResult<AssetResponseDto>(result);
+        entity.CongregationId = congregationId;
+        entity.Id = idGenerator.Generate();
+        entity.Category = category;
+
+        repository.Create(entity);
+        await unitOfWork.CommitAsync(ct);
+
+        var res = mapper.ToDto(entity);
+        return new SuccessResult<AssetResponseDto>(res);
     }
 
-    public async Task<IOperationResult> GetSummaryAsync(Guid congregationId, CancellationToken ct = default)
+    public async Task<IOperationResult> Update(
+        Guid congregationId,
+        Guid id,
+        AssetUpdateDto dto,
+        CancellationToken ct
+    )
     {
-        var result = await _assetRepository.GetSummaryAsync(congregationId, ct);
-        return new SuccessResult<AssetSummaryDto>(result);
+        var entity = await repository.GetById(congregationId, id, ct);
+
+        if (entity is null)
+            return new NotFoundResult(id.ToString());
+
+        mapper.Patch(dto, entity);
+        await unitOfWork.CommitAsync(ct);
+
+        var res = mapper.ToDto(entity);
+        return new SuccessResult<AssetResponseDto>(res);
+    }
+
+    public async Task<IOperationResult> Delete(Guid congregationId, Guid id, CancellationToken ct)
+    {
+        var entity = await repository.GetById(congregationId, id, ct);
+
+        if (entity is null)
+            return new NotFoundResult(id.ToString());
+
+        repository.SoftDelete(entity);
+        await unitOfWork.CommitAsync(ct);
+
+        return new NoContentResult();
+    }
+
+    public async Task<IOperationResult> Search(
+        Guid congregationId,
+        string name,
+        CancellationToken ct
+    )
+    {
+        var entities = await repository.Search(congregationId, name, ct);
+        var res = mapper.ToSearchDto(entities);
+        return new SuccessResult<List<AssetSearchResultDto>>(res);
+    }
+
+    private AssetCursor BuildCursor(Asset last)
+    {
+        return new AssetCursor { Name = last.Name, Id = last.Id };
     }
 }

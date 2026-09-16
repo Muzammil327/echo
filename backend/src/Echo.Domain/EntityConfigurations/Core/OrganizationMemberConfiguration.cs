@@ -13,14 +13,18 @@ public class OrganizationMemberConfiguration : PrimaryEntityConfigurationBase<Or
             .HasOne(om => om.Member)
             .WithMany()
             .HasForeignKey(om => om.MemberId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder
             .HasOne(om => om.Organization)
             .WithMany()
             .HasForeignKey(om => om.OrganizationId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(om => new { om.MemberId, om.OrganizationId }).IsUnique();
+
+        builder
+            .HasIndex(om => new { om.CreatedAt, om.Id })
+            .HasFilter($"\"{nameof(Project.DeletedAt)}\" IS NULL");
     }
 }

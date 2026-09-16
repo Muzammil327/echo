@@ -1,10 +1,10 @@
-using AutoMapper;
 using Echo.Application.HttpResults;
 using Echo.Application.Pagination;
-using Echo.Application.Query;
+using Echo.Application.Services.Encoders;
+using Echo.Application.Services.Generators;
 using Echo.Core.Dtos;
+using Echo.Core.Mapping.ProjectContributionMapping;
 using Echo.Core.Repositories;
-using Echo.Core.Services.Base;
 using Echo.Domain.Data;
 using Echo.Domain.Entities.Core;
 
@@ -12,45 +12,108 @@ namespace Echo.Core.Services;
 
 public class ProjectContributionService(
     ProjectContributionRepository repository,
-    AppDbContext context,
-    IMapper mapper
-) : PrimaryServiceBase<ProjectContribution>(repository, context, mapper)
+    ProjectRepository projectRepository,
+    IUnitOfWork unitOfWork,
+    IEncoder encoder,
+    IProjectContributionMapper mapper,
+    IIdGenerator idGenerator
+)
 {
-    private readonly ProjectContributionRepository _projectContributionRepository = repository;
-
-    public override async Task<IOperationResult> GetPageAsync(
+    public async Task<IOperationResult> List(
         Guid congregationId,
-        PaginationParameters paginationParameters,
-        QueryParameters? queryParameters,
-        CancellationToken ct = default
+        ProjectContributionFilters filters,
+        PaginationRequest pagination,
+        CancellationToken ct
     )
     {
-        var result = await _projectContributionRepository.GetPageAsync(
+        var cursor = encoder.Decode<ProjectContributionCursor>(pagination.Cursor);
+        var entities = await repository.List(
             congregationId,
-            paginationParameters,
-            queryParameters,
+            filters,
+            cursor,
+            pagination.PageSize + 1,
             ct
         );
-        return new SuccessResult<PagedResponse<ProjectContributionListResponseDto>>(result);
+
+        var hasMore = entities.Count > pagination.PageSize;
+        if (hasMore)
+            entities.RemoveAt(entities.Count - 1);
+
+        var nextCursor = hasMore ? encoder.Encode(BuildCursor(entities.Last())) : null;
+
+        var data = mapper.ToListDto(entities);
+        var res = new PagedResponse<ProjectContributionResponseDto>(hasMore, nextCursor, data);
+        return new SuccessResult<PagedResponse<ProjectContributionResponseDto>>(res);
     }
 
-    public override async Task<IOperationResult> GetByIdAsync(
-        Guid id,
+    public async Task<IOperationResult> GetById(Guid id, Guid congregationId, CancellationToken ct)
+    {
+        var entity = await repository.GetById(congregationId, id, ct);
+        if (entity is null)
+            return new NotFoundResult(id.ToString());
+
+        var res = mapper.ToDto(entity);
+        return new SuccessResult<ProjectContributionResponseDto>(res);
+    }
+
+    public async Task<IOperationResult> Create(
         Guid congregationId,
-        CancellationToken ct = default
+        ProjectContributionCreateDto dto,
+        CancellationToken ct
     )
     {
-        var result = await _projectContributionRepository.GetByIdAsync(id, congregationId, ct);
+        var project = await projectRepository.GetById(congregationId, dto.ProjectId, ct);
+        if (project is null)
+            return new ForeignKeyEntityNotFound(nameof(project));
 
-        if (result is null)
-            return new NotFoundResult("Project contribution not found.");
+        var entity = mapper.ToEntity(dto);
+        entity.CongregationId = congregationId;
+        entity.Id = idGenerator.Generate();
+        entity.Project = project;
 
-        return new SuccessResult<ProjectContributionResponseDto>(result);
+        repository.Create(entity);
+        await unitOfWork.CommitAsync(ct);
+
+        var res = mapper.ToDto(entity);
+        return new CreatedAtResult<ProjectContributionResponseDto>(res);
     }
 
-    public async Task<IOperationResult> GetSummaryAsync(Guid congregationId, Guid projectId, CancellationToken ct = default)
+    public async Task<IOperationResult> Update(
+        Guid congregationId,
+        Guid id,
+        ProjectContributionUpdateDto dto,
+        CancellationToken ct
+    )
     {
-        var result = await _projectContributionRepository.GetSummaryAsync(congregationId, projectId, ct);
-        return new SuccessResult<ProjectContributionSummaryDto?>(result);
+        var entity = await repository.GetById(congregationId, id, ct);
+        if (entity is null)
+            return new NotFoundResult(id.ToString());
+
+        mapper.Patch(dto, entity);
+        await unitOfWork.CommitAsync(ct);
+
+        var res = mapper.ToDto(entity);
+        return new SuccessResult<ProjectContributionResponseDto>(res);
+    }
+
+    public async Task<IOperationResult> Delete(Guid congregationId, Guid id, CancellationToken ct)
+    {
+        var entity = await repository.GetById(congregationId, id, ct);
+        if (entity is null)
+            return new NotFoundResult(id.ToString());
+
+        repository.SoftDelete(entity);
+        await unitOfWork.CommitAsync(ct);
+
+        return new NoContentResult();
+    }
+
+    private ProjectContributionCursor BuildCursor(ProjectContribution last)
+    {
+        return new ProjectContributionCursor
+        {
+            DateContributed = last.DateContributed,
+            Id = last.Id,
+        };
     }
 }

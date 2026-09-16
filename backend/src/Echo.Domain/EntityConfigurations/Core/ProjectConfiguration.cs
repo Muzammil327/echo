@@ -23,5 +23,11 @@ public class ProjectConfiguration : PrimaryEntityConfigurationBase<Project>
 
         builder.HasIndex(p => p.CategoryId);
         builder.HasIndex(p => p.ManagerId);
+        builder.HasIndex(p => p.Name);
+        builder.HasIndex(p => p.Name).HasMethod("GIN").HasOperators("gin_trgm_ops");
+
+        builder
+            .HasIndex(p => new { p.StartDate, p.Id })
+            .HasFilter($"\"{nameof(Project.DeletedAt)}\" IS NULL");
     }
 }
